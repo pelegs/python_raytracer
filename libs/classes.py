@@ -2,29 +2,16 @@ import numpy as np
 from .mathlib import *
 
 
-class Side:
+class Line:
     """
-    Represents a side of a polygon in 3D space.
-    It is defined by two edges, such that edges[0] is the start point
-    and edges[1] is the end point. The direction is given by the unit vector
-    from the start pointing towards the end.
-    NOTE: it is best to input the edges as a 2x3 numpy array: first row is edges[0],
-    second row is edges[1].
+    Represents a line in 3D space. [...]
     """
-    def __init__(self, edges):
-        self.edges = edges
-        self.direction = unit(self.edges[1] - self.edges[0])
+    def __init__(self, start, direction):
+        self.start = start
+        self.direction = unit(direction)
 
-    def point_on(self, t):
-        """
-        The (parametric) line equation for the side is given by
-        L(t) = start + direction*t. This function returns a point on the
-        line given the parameter t.
-        """
-        return self.edges[0] + t * self.direction
-
-    def __str__(self):
-        return f"Start: {self.edges[0]}, end: {self.edges[1]}, direction: {self.direction}"
+    def get_point(self, t):
+        return self.start + t*self.direction
 
 
 class Plane:
@@ -48,6 +35,32 @@ class Plane:
     def __str__(self):
         normal_txt = ",".join(map(str, self.normal))
         return f"Normal: {normal_txt}"
+
+
+class Side:
+# TODO: inherit from line?
+    """
+    Represents a side of a polygon in 3D space.
+    It is defined by two edges, such that edges[0] is the start point
+    and edges[1] is the end point. The direction is given by the unit vector
+    from the start pointing towards the end.
+    NOTE: it is best to input the edges as a 2x3 numpy array: first row is edges[0],
+    second row is edges[1].
+    """
+    def __init__(self, edges):
+        self.edges = edges
+        self.direction = unit(self.edges[1] - self.edges[0])
+
+    def point_on(self, t):
+        """
+        The (parametric) line equation for the side is given by
+        L(t) = start + direction*t. This function returns a point on the
+        line given the parameter t.
+        """
+        return self.edges[0] + t * self.direction
+
+    def __str__(self):
+        return f"Start: {self.edges[0]}, end: {self.edges[1]}, direction: {self.direction}"
 
 
 class Triangle:
