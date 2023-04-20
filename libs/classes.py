@@ -69,8 +69,8 @@ class Side(Line):
     It is defined by two edges, such that edges[0] is the start point
     and edges[1] is the end point. The direction is given by the unit vector
     from the start pointing towards the end.
-    NOTE: it is best to input the edges as a 2x3 numpy array: first row is edges[0],
-    second row is edges[1].
+    NOTE: it is best to input the edges as a 2x3 numpy array: first row is
+    edges[0], second row is edges[1].
     """
     def __init__(self, edges):
         self.edges = edges
@@ -78,7 +78,8 @@ class Side(Line):
         super().__init__(self.edges[0], self.direction)
 
     def __str__(self):
-        return f"Start: {self.edges[0]}, end: {self.edges[1]}, direction: {self.direction}"
+        return f"Start: {self.edges[0]}, end: {self.edges[1]}, direction:"\
+               f"{self.direction}"
 
 
 class Triangle:
