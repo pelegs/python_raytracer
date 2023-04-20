@@ -10,8 +10,16 @@ class Line:
         self.start = start
         self.direction = unit(direction)
 
-    def get_point(self, t):
+    def at_point(self, t):
+        """
+        The (parametric) line equation for the line is given by
+        L(t) = start + direction*t. This function returns a point on the
+        line given the parameter t.
+        """
         return self.start + t*self.direction
+
+    def __str__(self):
+        return f"start: {self.start}, direction: {self.direction}"
 
 
 class Plane:
@@ -32,13 +40,30 @@ class Plane:
         d = -(a*px + b*py + c*pz)
         self.normal_form = np.array([a, b, c, d])
 
+    def reflect(self, direction):
+        """ Returns the direction of a line reflected from the plane. """
+        return direction - 2*(np.dot(direction, self.normal))*self.normal
+
+    def get_line_intersection(self, line):
+        """
+        Returns the point where line intersects the plane. If such point
+        doesn't exist it return False.
+        """
+        if np.dot(self.normal, line.direction) == 0:
+            return None
+        else:
+            a, b, c, d = self.normal_form
+            sx, sy, sz = line.start
+            vx, vy, vz = line.direction
+            t = -(a*sx + b*sy + c*sz + d)/(a*vx + b*vy + c*vz)
+            return line.at_point(t)
+
     def __str__(self):
         normal_txt = ",".join(map(str, self.normal))
         return f"Normal: {normal_txt}"
 
 
-class Side:
-# TODO: inherit from line?
+class Side(Line):
     """
     Represents a side of a polygon in 3D space.
     It is defined by two edges, such that edges[0] is the start point
@@ -50,14 +75,7 @@ class Side:
     def __init__(self, edges):
         self.edges = edges
         self.direction = unit(self.edges[1] - self.edges[0])
-
-    def point_on(self, t):
-        """
-        The (parametric) line equation for the side is given by
-        L(t) = start + direction*t. This function returns a point on the
-        line given the parameter t.
-        """
-        return self.edges[0] + t * self.direction
+        super().__init__(self.edges[0], self.direction)
 
     def __str__(self):
         return f"Start: {self.edges[0]}, end: {self.edges[1]}, direction: {self.direction}"
@@ -102,6 +120,24 @@ class Triangle:
         if np.dot(u, w) < 0:
             return False
         return True
+
+    def line_intersect(self, line):
+        """
+        Checkes if line intersects the triangle's plane such that the
+        intersection point is inside the triangle.
+        NOTE: consider returning the intersection point if true?
+        """
+        p = self.plane.get_line_intersection(line)
+        if p and self.point_inside(p):
+            return True
+        return False
+
+    def reflect(self, direction):
+        """
+        Returns the direction of a reflected line, assuming it intersects
+        the triangle.
+        """
+        return self.plane.reflect(direction)
 
     def __str__(self):
         return f"""
