@@ -10,6 +10,12 @@ class Line:
         self.start = start
         self.direction = unit(direction)
 
+    @classmethod
+    def from_two_points(cls, points):
+        """ Initiate via two points, preferably given as a 2x3 np array. """
+        direction = points[1]-points[0]
+        return cls(points[0], direction)
+
     def at_point(self, t):
         """
         The (parametric) line equation for the line is given by
@@ -34,6 +40,17 @@ class Plane:
         self.point = point
         self.get_normal_form()
 
+    @classmethod
+    def from_normal_form(cls, NFvec):
+        normal = NFvec[:3]
+        # Get index of first non-zero element in normal
+        if not NFvec[:3].any():
+            raise ValueError("Normal vector can't be (0,0,0)!")
+        i = (normal != 0).argmax()
+        point = np.zeros(3)
+        point[i] = -NFvec[3]/normal[i]
+        return cls(normal, point)
+
     def get_normal_form(self):
         a, b, c = self.normal
         px, py, pz = self.point
@@ -57,6 +74,11 @@ class Plane:
             vx, vy, vz = line.direction
             t = -(a*sx + b*sy + c*sz + d)/(a*vx + b*vy + c*vz)
             return line.at_point(t)
+
+    def point_on_plane(self, p):
+        return np.isclose(
+            np.dot(self.normal, p), -1*self.normal_form[3], 1E-10
+        )
 
     def __str__(self):
         normal_txt = ",".join(map(str, self.normal))
