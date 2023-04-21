@@ -1,4 +1,5 @@
 import numpy as np
+from itertools import product
 from .mathlib import *
 
 
@@ -42,6 +43,17 @@ class Plane:
 
     @classmethod
     def from_normal_form(cls, NFvec):
+        """
+        Instead of creating a plane using a normal and a point on the plane,
+        we can create it using a normal form: ax+by+cz+d=0, s.t. a^2+b^2+c^2=1.
+        Then (a,b,c) is the plane normal, but we still need to find a point on
+        the plane. Assuming that the normal is not the zero vector (which is
+        isn't allowed anyway), we can use its first non-zero component to find
+        a point on the plane: let's say that the component is y, and so we take
+        b. We then substitute x=0, z=0 into the normal form equation, which
+        then gives by+d=0, i.e. y=-d/b. Thus, the point (0,-d/b,0) solves the
+        normal form equation, and is thus guaranteed to be in the plane.
+        """
         normal = NFvec[:3]
         # Get index of first non-zero element in normal
         if not NFvec[:3].any():
@@ -77,7 +89,7 @@ class Plane:
 
     def point_on_plane(self, p):
         return np.isclose(
-            np.dot(self.normal, p), -1*self.normal_form[3], 1E-10
+            np.dot(self.normal, p), -1*self.normal_form[3], PRECISION
         )
 
     def __str__(self):
@@ -98,6 +110,7 @@ class Side(Line):
         self.edges = edges
         self.direction = unit(self.edges[1] - self.edges[0])
         super().__init__(self.edges[0], self.direction)
+        self.length = distance(edges[1], edges[0])
 
     def __str__(self):
         return f"Start: {self.edges[0]}, end: {self.edges[1]}, direction:"\
@@ -147,12 +160,12 @@ class Triangle:
     def line_intersect(self, line):
         """
         Checkes if line intersects the triangle's plane such that the
-        intersection point is inside the triangle.
-        NOTE: consider returning the intersection point if true?
+        intersection point is inside the triangle. If it does, the function
+        returns the point of intersection.
         """
         p = self.plane.get_line_intersection(line)
         if p and self.point_inside(p):
-            return True
+            return p
         return False
 
     def reflect(self, direction):
@@ -168,6 +181,38 @@ class Triangle:
         Basis: {self.v1}, {self.v2}
         Plane: normal: {self.plane.normal}, point: {self.plane.point}.
         """
+
+
+class Sphere:
+    """ TBW """
+    def __init__(self, center, radius):
+        self.center = center
+        self.radius = radius
+        self.radius_sqr = radius**2
+
+    def point_inside(self, point):
+        return distance2(point, self.center) <= self.radius_sqr
+
+    def point_on(self, point):
+        d2 = distance2(point, self.center)
+        return np.isclose(d2, 0, PRECISION)
+
+    def surface_normal(self, point):
+        """
+        Return the normal vector to the sphere at a given point on its surface.
+        """
+        if not self.point_on(point):
+            raise ValueError(f"Point {point} not on the surface of the sphere")
+        return unit(point - self.center)
+
+
+class Box:
+    """
+    TBW
+    """
+    def __init__(self, vertices):
+        self.vertices = np.array([x for x in product(*vertices.T)])
+        self.side_lengths = np.diff(vertices, axis=0).flatten()
 
 
 if __name__ == "__main__":
