@@ -206,14 +206,5 @@ class Sphere:
         return unit(point - self.center)
 
 
-class Box:
-    """
-    TBW
-    """
-    def __init__(self, vertices):
-        self.vertices = np.array([x for x in product(*vertices.T)])
-        self.side_lengths = np.diff(vertices, axis=0).flatten()
-
-
 if __name__ == "__main__":
     pass
