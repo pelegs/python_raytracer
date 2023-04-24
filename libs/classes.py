@@ -7,14 +7,15 @@ class Line:
     """
     Represents a line in 3D space. [...]
     """
+
     def __init__(self, start, direction):
         self.start = start
         self.direction = unit(direction)
 
     @classmethod
     def from_two_points(cls, points):
-        """ Initiate via two points, preferably given as a 2x3 np array. """
-        direction = points[1]-points[0]
+        """Initiate via two points, preferably given as a 2x3 np array."""
+        direction = points[1] - points[0]
         return cls(points[0], direction)
 
     def at_point(self, t):
@@ -23,7 +24,7 @@ class Line:
         L(t) = start + direction*t. This function returns a point on the
         line given the parameter t.
         """
-        return self.start + t*self.direction
+        return self.start + t * self.direction
 
     def __str__(self):
         return f"start: {self.start}, direction: {self.direction}"
@@ -36,6 +37,7 @@ class Plane:
     and a point on the plane. The normal form is a 4-vector with components
     (a, b, c, d), such that they solve the equation ax+by+cz+d=0.
     """
+
     def __init__(self, normal, point):
         self.normal = normal
         self.point = point
@@ -60,18 +62,18 @@ class Plane:
             raise ValueError("Normal vector can't be (0,0,0)!")
         i = (normal != 0).argmax()
         point = np.zeros(3)
-        point[i] = -NFvec[3]/normal[i]
+        point[i] = -NFvec[3] / normal[i]
         return cls(normal, point)
 
     def get_normal_form(self):
         a, b, c = self.normal
         px, py, pz = self.point
-        d = -(a*px + b*py + c*pz)
+        d = -(a * px + b * py + c * pz)
         self.normal_form = np.array([a, b, c, d])
 
     def reflect(self, direction):
-        """ Returns the direction of a line reflected from the plane. """
-        return direction - 2*(np.dot(direction, self.normal))*self.normal
+        """Returns the direction of a line reflected from the plane."""
+        return direction - 2 * (np.dot(direction, self.normal)) * self.normal
 
     def get_line_intersection(self, line):
         """
@@ -84,13 +86,11 @@ class Plane:
             a, b, c, d = self.normal_form
             sx, sy, sz = line.start
             vx, vy, vz = line.direction
-            t = -(a*sx + b*sy + c*sz + d)/(a*vx + b*vy + c*vz)
+            t = -(a * sx + b * sy + c * sz + d) / (a * vx + b * vy + c * vz)
             return line.at_point(t)
 
     def point_on_plane(self, p):
-        return np.isclose(
-            np.dot(self.normal, p), -1*self.normal_form[3], PRECISION
-        )
+        return np.isclose(np.dot(self.normal, p), -1 * self.normal_form[3], PRECISION)
 
     def __str__(self):
         normal_txt = ",".join(map(str, self.normal))
@@ -106,6 +106,7 @@ class Side(Line):
     NOTE: it is best to input the edges as a 2x3 numpy array: first row is
     edges[0], second row is edges[1].
     """
+
     def __init__(self, edges):
         self.edges = edges
         self.direction = unit(self.edges[1] - self.edges[0])
@@ -113,8 +114,10 @@ class Side(Line):
         self.length = distance(edges[1], edges[0])
 
     def __str__(self):
-        return f"Start: {self.edges[0]}, end: {self.edges[1]}, direction:"\
-               f"{self.direction}"
+        return (
+            f"Start: {self.edges[0]}, end: {self.edges[1]}, direction:"
+            f"{self.direction}"
+        )
 
 
 class Triangle:
@@ -124,6 +127,7 @@ class Triangle:
     (s.t. each row represents a vertex). From this it creates the appropriate
     three sides of the triangle and the plane it lies on.
     """
+
     def __init__(self, vertices):
         self.vertices = vertices
         self.create_sides()
@@ -131,11 +135,13 @@ class Triangle:
 
     def create_sides(self):
         # TODO: add case where sides are colinear
-        pairs = np.array([
-            (a, b)
-            for idx, a in enumerate(self.vertices)
-            for b in self.vertices[idx+1:]
-        ])
+        pairs = np.array(
+            [
+                (a, b)
+                for idx, a in enumerate(self.vertices)
+                for b in self.vertices[idx + 1 :]
+            ]
+        )
         self.sides = [Side(pair) for pair in pairs]
 
     def create_plane(self):
@@ -146,7 +152,7 @@ class Triangle:
         self.plane = Plane(normal, point)
 
     def point_inside(self, p):
-        """ Checks whether a given point p is inside the triangle. """
+        """Checks whether a given point p is inside the triangle."""
         trans_triangle = self.vertices - p
         u = np.cross(trans_triangle[1], trans_triangle[2])
         v = np.cross(trans_triangle[2], trans_triangle[0])
@@ -184,7 +190,8 @@ class Triangle:
 
 
 class Sphere:
-    """ TBW """
+    """TBW"""
+
     def __init__(self, center, radius):
         self.center = center
         self.radius = radius
@@ -204,6 +211,34 @@ class Sphere:
         if not self.point_on(point):
             raise ValueError(f"Point {point} not on the surface of the sphere")
         return unit(point - self.center)
+
+
+class Screen:
+    """
+    TBW
+    """
+    def __init__(self, resolution=VGA_480p_4_3):
+        self.aspect_ratio = resolution[0]/resolution[1]
+        self.pixels = np.zeros(np.append(resolution, 3))
+
+
+class Camera:
+    """
+    TBW
+    """
+    def __init__(
+        self,
+        pos=np.zeros(3),
+        dir=-Z_DIR,
+        rotation=0.0,
+        view_angle=30.0,
+        aspect_ratio=1.0,
+    ):
+        self.pos = pos
+        self.dir = dir
+        self.rotation = rotation
+        self.view_angle = view_angle
+        self.aspect_ratio = aspect_ratio
 
 
 if __name__ == "__main__":
