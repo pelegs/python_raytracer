@@ -5,7 +5,7 @@ from .mathlib import *
 
 class Line:
     """
-    Represents a line in 3D space. [...]
+    Represents a line in 3D space. (TBW)
     """
 
     def __init__(self, start, direction):
