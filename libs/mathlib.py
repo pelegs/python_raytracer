@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import Rotation
 
 
 PRECISION = 1E-8
@@ -30,6 +31,11 @@ def distance(v1, v2):
 def distance2(v1, v2):
     dv = v2-v1
     return np.dot(dv, dv)
+
+
+def rotate_ves(vecs, rot):
+    r = Rotation.from_rotvec(rot)
+    return r.apply(vecs)
 
 
 if __name__ == "__main__":

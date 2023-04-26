@@ -238,7 +238,7 @@ class Screen:
                 [0, self.AR_],
             ]
         )
-        """ self.plane = Plane """
+        """ self.plane = Plane.from_ """
         self.center = np.array([0.5, 0.5 * self.AR_])
 
     def get_pixel_center(self, indices):
