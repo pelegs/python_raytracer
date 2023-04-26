@@ -7,7 +7,6 @@ class Line:
     """
     Represents a line in 3D space. [...]
     """
-
     def __init__(self, start, direction):
         self.start = start
         self.direction = unit(direction)
@@ -37,7 +36,6 @@ class Plane:
     and a point on the plane. The normal form is a 4-vector with components
     (a, b, c, d), such that they solve the equation ax+by+cz+d=0.
     """
-
     def __init__(self, normal, point):
         self.normal = normal
         self.point = point
@@ -64,6 +62,16 @@ class Plane:
         point = np.zeros(3)
         point[i] = -NFvec[3] / normal[i]
         return cls(normal, point)
+
+    @classmethod
+    def from_three_points(cls, points):
+        """
+        Initialize plane from three given points.
+        """
+        v1 = points[1] - points[0]
+        v2 = points[2] - points[0]
+        normal = unit(np.cross(v1, v2))
+        return cls(normal, points[0])
 
     def get_normal_form(self):
         a, b, c = self.normal
@@ -145,11 +153,7 @@ class Triangle:
         self.sides = [Side(pair) for pair in pairs]
 
     def create_plane(self):
-        self.v1 = self.vertices[1] - self.vertices[0]
-        self.v2 = self.vertices[2] - self.vertices[0]
-        normal = unit(np.cross(self.v1, self.v2))
-        point = self.vertices[2]
-        self.plane = Plane(normal, point)
+        self.plane = Plane.from_three_points(self.vertices)
 
     def point_inside(self, p):
         """Checks whether a given point p is inside the triangle."""
@@ -216,10 +220,44 @@ class Sphere:
 class Screen:
     """
     TBW
+    NOTE: except for final 3D transformations, all calculations are done in
+    screen coordinates: x∈[0,1], y∈[0,1/aspect_ratio].
     """
     def __init__(self, resolution=VGA_480p_4_3):
-        self.aspect_ratio = resolution[0]/resolution[1]
+        self.aspect_ratio = resolution[0] / resolution[1]
+        self.AR_ = 1.0 / self.aspect_ratio
         self.pixels = np.zeros(np.append(resolution, 3))
+        self.pixel_side = 1.0 / self.pixels.shape[0]
+        self.resolution = self.pixels.shape
+        self.corners = np.array(
+            [
+                # Corners order: NW, NE, SE, SW
+                [0, 0],
+                [1, 0],
+                [1, self.AR_],
+                [0, self.AR_],
+            ]
+        )
+        """ self.plane = Plane """
+        self.center = np.array([0.5, 0.5 * self.AR_])
+
+    def get_pixel_center(self, indices):
+        i, j = indices
+        if not (0 <= i < self.resolution[0]):
+            raise ValueError(
+                f"""Index {i} greater than horizontal pixel range.
+                Allowed range is [0, {self.resolution[0]-1}].
+                """
+            )
+        if not (0 <= j < self.resolution[1]):
+            raise ValueError(
+                f"""Index {j} greater than vertical pixel range.
+                Allowed range is [0, {self.resolution[1]-1}].
+                """
+            )
+        if not isinstance(indices, np.ndarray):
+            indices = np.array([indices]).flatten()
+        return (indices + np.array([0.5, 0.5])) * self.pixel_side
 
 
 class Camera:
