@@ -1,11 +1,11 @@
 import numpy as np
-from scipy import Rotation
+from scipy.spatial.transform import Rotation
 
 
+# General constants
 PRECISION = 1E-8
-X_DIR = np.array([1, 0, 0])
-Y_DIR = np.array([0, 1, 0])
-Z_DIR = np.array([0, 0, 1])
+I_ = np.identity(3)
+X_, Y_, Z_ = I_
 
 # Screen resolutions
 VGA_480p_4_3 = (640, 480)
@@ -33,9 +33,30 @@ def distance2(v1, v2):
     return np.dot(dv, dv)
 
 
-def rotate_ves(vecs, rot):
-    r = Rotation.from_rotvec(rot)
-    return r.apply(vecs)
+def angle_between(v1, v2, units=False):
+    c = np.dot(v1, v2)
+    if not units:
+        c = c / (np.linalg.norm(v1) * np.linalg.norm(v2))
+    if -1 <= c <= 1:
+        return np.arccos(c)
+    raise ValueError(f"{c} is not a valid argument to acos.")
+
+
+def get_rotation(vs, vt):
+    t = angle_between(vs, vt)
+    s, c = np.sin(t/2), np.cos(t/2)
+    r = unit(np.cross(vs, vt))
+    q = np.append(r*s, c)
+    return q
+
+
+def same_direction(v1, v2, precision=5):
+    return np.allclose(unit(v1), unit(v2))
+
+
+def rotate_vecs(vecs, q):
+    R = Rotation.from_quat(q)
+    return R.apply(vecs)
 
 
 if __name__ == "__main__":
