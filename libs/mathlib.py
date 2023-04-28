@@ -60,6 +60,10 @@ def cross(v1, v2):
 
 
 def get_rotation(vs, vt):
+    """
+    Returns quaternion q which rotates vs s.t. it is pointing in the
+    direction of vt.
+    """
     t = angle_between(vs, vt)
     s, c = np.sin(t/2), np.cos(t/2)
     r = unit(cross(vs, vt))
@@ -67,12 +71,27 @@ def get_rotation(vs, vt):
     return q
 
 
-def same_direction(v1, v2, precision=PRECISION):
-    return np.allclose(unit(v1), unit(v2), atol=precision)
-
-
 def rotate_vecs(vecs, q):
+    """
+    Applies the rotation given by the quaternion q to the set ofnvectors vecs.
+    """
     return Rotation.from_quat(q).apply(vecs)
+
+
+def rotate_to(vs, vt, vecs):
+    """
+    Rotates the set of vectors vecs by the same quaternion which
+    rotates vs to vt.
+    """
+    q = get_rotation(vs, vt)
+    return rotate_vecs(vecs, q)
+
+
+def same_direction(v1, v2, precision=PRECISION):
+    """
+    Checks whether the two vectors v1 and v2 are similar to within a precision.
+    """
+    return np.allclose(unit(v1), unit(v2), atol=precision)
 
 
 if __name__ == "__main__":
