@@ -1,5 +1,6 @@
 import numpy as np
-from itertools import product
+
+""" from itertools import product """
 from .mathlib import *
 
 
@@ -7,6 +8,7 @@ class Line:
     """
     Represents a line in 3D space. (TBW)
     """
+
     def __init__(self, start, direction):
         self.start = start
         self.direction = unit(direction)
@@ -36,6 +38,7 @@ class Plane:
     and a point on the plane. The normal form is a 4-vector with components
     (a, b, c, d), such that they solve the equation ax+by+cz+d=0.
     """
+
     def __init__(self, normal, point):
         self.normal = normal
         self.point = point
@@ -70,7 +73,7 @@ class Plane:
         """
         v1 = points[1] - points[0]
         v2 = points[2] - points[0]
-        normal = unit(np.cross(v1, v2))
+        normal = unit(cross(v1, v2))
         return cls(normal, points[0])
 
     def get_normal_form(self):
@@ -223,13 +226,17 @@ class Screen:
     NOTE: except for final 3D transformations, all calculations are done in
     screen coordinates: x∈[0,1], y∈[0,1/aspect_ratio].
     """
+
     def __init__(self, resolution=VGA_480p_4_3):
+        # resolution related
         self.aspect_ratio = resolution[0] / resolution[1]
         self.AR_ = 1.0 / self.aspect_ratio
         self.pixels = np.zeros(np.append(resolution, 3))
         self.pixel_side = 1.0 / self.pixels.shape[0]
         self.resolution = self.pixels.shape
-        self.corners = np.array(
+
+        # Screen coordinate system (scs)
+        self.corners_scs = np.array(
             [
                 # Corners order: NW, NE, SE, SW
                 [0, 0],
@@ -238,8 +245,23 @@ class Screen:
                 [0, self.AR_],
             ]
         )
-        """ self.plane = Plane.from_ """
-        self.center = np.array([0.5, 0.5 * self.AR_])
+        self.center_scs = np.array([0.5, 0.5*self.AR_])
+
+        # World coordinate system (wcs)
+        self.points_wcs = np.array(
+            [
+                # Corners order: NW, NE, SE, SW
+                [-0.5, +0.5*self.AR_, 1],
+                [+0.5, +0.5*self.AR_, 1],
+                [+0.5, -0.5*self.AR_, 1],
+                [-0.5, -0.5*self.AR_, 1],
+                [0, 0, 1],
+            ]
+        )
+        self.plane = Plane.from_three_points(self.points_wcs[:3])
+
+        # Position and orientation related
+        # ...
 
     def get_pixel_center(self, indices):
         i, j = indices
@@ -260,23 +282,30 @@ class Screen:
         return (indices + np.array([0.5, 0.5])) * self.pixel_side
 
 
+    def rotate(self, q):
+        old_center = self.points_wcs[4]
+        self.points_wcs = self.points_wcs - self.points_wcs[4]
+        print(self.points_wcs)
+
+
 class Camera:
     """
     TBW
     """
+
     def __init__(
         self,
         pos=np.zeros(3),
-        dir=-Z_DIR,
+        dir=-Z_,
         rotation=0.0,
-        view_angle=30.0,
-        aspect_ratio=1.0,
+        screen_distance=1,
+        screen=Screen(),
     ):
         self.pos = pos
         self.dir = dir
         self.rotation = rotation
-        self.view_angle = view_angle
-        self.aspect_ratio = aspect_ratio
+        self.screen_distance = screen_distance
+        self.screen = screen
 
 
 if __name__ == "__main__":

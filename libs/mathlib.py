@@ -72,8 +72,7 @@ def same_direction(v1, v2, precision=PRECISION):
 
 
 def rotate_vecs(vecs, q):
-    R = Rotation.from_quat(q)
-    return R.apply(vecs)
+    return Rotation.from_quat(q).apply(vecs)
 
 
 if __name__ == "__main__":
