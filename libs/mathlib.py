@@ -94,5 +94,9 @@ def same_direction(v1, v2, precision=PRECISION):
     return np.allclose(unit(v1), unit(v2), atol=precision)
 
 
+def scale_to(vec, length):
+    return unit(vec) * length
+
+
 if __name__ == "__main__":
     pass

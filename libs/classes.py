@@ -245,23 +245,21 @@ class Screen:
                 [0, self.AR_],
             ]
         )
-        self.center_scs = np.array([0.5, 0.5*self.AR_])
+        self.center_scs = np.array([0.5, 0.5 * self.AR_])
 
         # World coordinate system (wcs)
         self.points_wcs = np.array(
             [
                 # Corners order: NW, NE, SE, SW
-                [-0.5, +0.5*self.AR_, 1],
-                [+0.5, +0.5*self.AR_, 1],
-                [+0.5, -0.5*self.AR_, 1],
-                [-0.5, -0.5*self.AR_, 1],
-                [0, 0, 1],
+                [-0.5, +0.5 * self.AR_, -1],
+                [+0.5, +0.5 * self.AR_, -1],
+                [+0.5, -0.5 * self.AR_, -1],
+                [-0.5, -0.5 * self.AR_, -1],
+                [0, 0, -1],
             ]
         )
         self.plane = Plane.from_three_points(self.points_wcs[:3])
-
-        # Position and orientation related
-        # ...
+        self.calc_screen_basis_vecs()
 
     def get_pixel_center(self, indices):
         i, j = indices
@@ -281,11 +279,42 @@ class Screen:
             indices = np.array([indices]).flatten()
         return (indices + np.array([0.5, 0.5])) * self.pixel_side
 
+    def calc_screen_basis_vecs(self):
+        """
+        Calculates the 3 basis vectors of the screen in world coordinates:
+        1. The vector from NW corner to NE corner.
+        2. The vector from NW corner to SW corner scaled to length 1.
+        3. The normal to above vectors.
+        Since all three vectors have unit length and are orthonormal to each
+        other, the resulting basis set is orthonormal.
+        """
+        u = self.points_wcs[1] - self.points_wcs[0]
+        v = unit(self.points_wcs[3] - self.points_wcs[0])
+        w = cross(u, v)
+        self.basis_vecs = np.array([u, v, w])
 
     def rotate(self, q):
         old_center = self.points_wcs[4]
-        self.points_wcs = self.points_wcs - self.points_wcs[4]
-        print(self.points_wcs)
+        self.points_wcs = self.points_wcs - old_center
+        self.points_wcs = rotate_vecs(self.points_wcs, q)
+        self.points_wcs = self.points_wcs + old_center
+        self.plane = Plane.from_three_points(self.points_wcs[:3])
+        self.calc_screen_basis_vecs()
+
+    def translate(self, r):
+        self.points_wcs = self.points_wcs + r
+        self.plane = Plane.from_three_points(self.points_wcs[:3])
+        self.calc_screen_basis_vecs()
+
+    def sc_to_wc(self, sc):
+        """
+        Input: point(s) in screen coordinates.
+        Output: point(s) in world coordinates.
+        NOTE: maybe add limitation on values s.t. sc is indeed inside screen?
+        """
+        n = sc.shape[0]
+        sc_3 = np.c_[sc, np.zeros(n)]
+        return np.dot(sc_3, self.basis_vecs) + self.points_wcs[0]
 
 
 class Camera:
