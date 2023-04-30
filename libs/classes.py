@@ -293,16 +293,15 @@ class Screen:
         w = cross(u, v)
         self.basis_vecs = np.array([u, v, w])
 
-    def rotate(self, q):
-        old_center = self.points_wcs[4]
-        self.points_wcs = self.points_wcs - old_center
-        self.points_wcs = rotate_vecs(self.points_wcs, q)
-        self.points_wcs = self.points_wcs + old_center
+    def rotate(self, q, point=None):
+        if point is None:
+            point = self.points_wcs[4]
+        self.points_wcs = rotate_around(self.points_wcs, q, point)
         self.plane = Plane.from_three_points(self.points_wcs[:3])
         self.calc_screen_basis_vecs()
 
-    def translate(self, r):
-        self.points_wcs = self.points_wcs + r
+    def translate(self, dr):
+        self.points_wcs = self.points_wcs + dr
         self.plane = Plane.from_three_points(self.points_wcs[:3])
         self.calc_screen_basis_vecs()
 
@@ -320,21 +319,36 @@ class Screen:
 class Camera:
     """
     TBW
+    d_scr: vector from camera position to screen center.
     """
 
     def __init__(
         self,
         pos=np.zeros(3),
-        dir=-Z_,
+        d_scr=-Z_,
         rotation=0.0,
-        screen_distance=1,
         screen=Screen(),
     ):
         self.pos = pos
-        self.dir = dir
+        self.d_scr = d_scr
         self.rotation = rotation
-        self.screen_distance = screen_distance
         self.screen = screen
+
+    def rotate(self, q):
+        self.d_scr = rotate_around(self.d_scr, q, self.pos)
+        self.screen.rotate(q, self.pos)
+
+    def translate(self, dr):
+        self.pos = self.pos + dr
+        self.screen.translate(dr)
+
+    def zoom(self, factor):
+        if factor == 0:
+            raise ValueError("Can't scale distance to screen by zero!")
+        d_scr_old = self.d_scr
+        self.d_scr = self.d_scr * factor
+        self.screen.translate(self.d_scr - d_scr_old)
+
 
 
 if __name__ == "__main__":

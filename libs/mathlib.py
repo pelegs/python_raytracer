@@ -63,6 +63,7 @@ def get_rotation(vs, vt):
     """
     Returns quaternion q which rotates vs s.t. it is pointing in the
     direction of vt.
+    TODO: make it work for vectors 180° apart.
     """
     t = angle_between(vs, vt)
     s, c = np.sin(t/2), np.cos(t/2)
@@ -85,6 +86,10 @@ def rotate_to(vs, vt, vecs):
     """
     q = get_rotation(vs, vt)
     return rotate_vecs(vecs, q)
+
+
+def rotate_around(vecs, q, center):
+    return rotate_vecs(vecs-center, q) + center
 
 
 def same_direction(v1, v2, precision=PRECISION):
