@@ -1,7 +1,17 @@
 import numpy as np
-
-""" from itertools import product """
 from .mathlib import *
+from tqdm import tqdm
+
+
+# Colors
+BLACK = np.array([0, 0, 0])
+WHITE = np.array([255, 255, 255])
+BLUE = np.array([255, 0, 0])
+GREEN = np.array([0, 255, 0])
+RED = np.array([0, 0, 255])
+""" CYAN = np.array([0, 255, 255]) """
+""" MAGENTA = np.array([255, 0, 255]) """
+""" YELLOW = np.array([255, 255, 0]) """
 
 
 class Line:
@@ -11,7 +21,7 @@ class Line:
 
     def __init__(self, start, direction):
         self.start = start
-        self.direction = unit(direction)
+        self.direction = unit(direction).flatten()
 
     @classmethod
     def from_two_points(cls, points):
@@ -26,6 +36,17 @@ class Line:
         line given the parameter t.
         """
         return self.start + t * self.direction
+
+    def intersect_sphere(self, sphere):
+        oc = self.start - sphere.center
+        a = norm2(self.direction)
+        b = 2 * np.dot(oc, self.direction)
+        c = norm2(oc) - sphere.radius_sqr
+        D = b**2 - 4*a*c
+        if D < 0:
+            return -1
+        else:
+            return -(b + np.sqrt(D))/(2*a)
 
     def __str__(self):
         return f"start: {self.start}, direction: {self.direction}"
@@ -199,10 +220,11 @@ class Triangle:
 class Sphere:
     """TBW"""
 
-    def __init__(self, center, radius):
+    def __init__(self, center=-3*Z_, radius=1.0, color=RED):
         self.center = center
         self.radius = radius
         self.radius_sqr = radius**2
+        self.color = color
 
     def point_inside(self, point):
         return distance2(point, self.center) <= self.radius_sqr
@@ -215,8 +237,8 @@ class Sphere:
         """
         Return the normal vector to the sphere at a given point on its surface.
         """
-        if not self.point_on(point):
-            raise ValueError(f"Point {point} not on the surface of the sphere")
+        """ if not self.point_on(point): """
+        """     raise ValueError(f"Point {point} not on the surface of the sphere") """
         return unit(point - self.center)
 
 
@@ -231,7 +253,7 @@ class Screen:
         # resolution related
         self.aspect_ratio = resolution[0] / resolution[1]
         self.AR_ = 1.0 / self.aspect_ratio
-        self.pixels = np.zeros(np.append(resolution, 3))
+        self.pixels = np.zeros(np.append(resolution, 3), dtype=np.int16)
         self.pixel_side = 1.0 / self.pixels.shape[0]
         self.resolution = self.pixels.shape
 
@@ -261,7 +283,8 @@ class Screen:
         self.plane = Plane.from_three_points(self.points_wcs[:3])
         self.calc_screen_basis_vecs()
 
-    def get_pixel_center(self, indices):
+    def get_pixel_center_sc(self, indices):
+        # TODO: rewrite to accept an array of indices
         i, j = indices
         if not (0 <= i < self.resolution[0]):
             raise ValueError(
@@ -278,6 +301,12 @@ class Screen:
         if not isinstance(indices, np.ndarray):
             indices = np.array([indices]).flatten()
         return (indices + np.array([0.5, 0.5])) * self.pixel_side
+
+    def get_pixel_center_wc(self, indices):
+        # TODO: rewrite to accept an array of points on screen
+        point_sc = self.get_pixel_center_sc(indices)
+        point_sc = np.array([point_sc])
+        return self.sc_to_wc(point_sc)
 
     def calc_screen_basis_vecs(self):
         """
@@ -335,10 +364,16 @@ class Camera:
         self.screen = screen
 
     def rotate(self, q):
+        """
+        Rotates camera using the quaternion q.
+        """
         self.d_scr = rotate_around(self.d_scr, q, self.pos)
         self.screen.rotate(q, self.pos)
 
     def translate(self, dr):
+        """
+        Translate the camera by dr.
+        """
         self.pos = self.pos + dr
         self.screen.translate(dr)
 
@@ -348,6 +383,38 @@ class Camera:
         d_scr_old = self.d_scr
         self.d_scr = self.d_scr * factor
         self.screen.translate(self.d_scr - d_scr_old)
+
+    def dir_to_pixel_center(self, indices):
+        """
+        Get unit vector pointing from camera origin to the center of the
+        pixel with given indices.
+        """
+        return unit(self.screen.get_pixel_center_wc(indices)-self.pos)
+
+    def draw_sphere(self, sphere):
+        """
+        This is just a test! Will be deleted later.
+        """
+        w, h = self.screen.resolution[:2]
+        self.screen.pixels = np.zeros((w, h, 3), dtype=np.int16)
+        for i in tqdm(range(self.screen.resolution[0])):
+            for j in range(self.screen.resolution[1]):
+                ray = Line(self.pos, self.dir_to_pixel_center((i, j)))
+                t = ray.intersect_sphere(sphere)
+                if t > 0:
+                    p = ray.at_point(t)
+                    f = np.abs(np.dot(ray.direction, sphere.surface_normal(p)))
+                    """ self.screen.pixels[i, j] = (sphere.color * f).astype(np.int16) """
+                    self.screen.pixels[i, j] = (sphere.surface_normal(p)*255*f).astype(np.int16)
+
+
+class Ray:
+    """
+    TBW.
+    """
+    def __init__(self, origin, dir):
+        # more vars to come
+        self.line = Line(self.origin, self.dir)
 
 
 

@@ -33,6 +33,10 @@ def distance2(v1, v2):
     return np.dot(dv, dv)
 
 
+def norm2(v):
+    return np.dot(v, v)
+
+
 def angle_between(v1, v2, units=False):
     c = np.dot(v1, v2)
     if not units:
