@@ -4,15 +4,18 @@ from libs.classes import *
 
 screen = Screen(resolution=(320, 240))
 camera = Camera(screen=screen)
-sphere = Sphere()
+camera.translate(5*Z_)
+points = np.array([
+    [-2, -2, -4],
+    [2, -2, -4],
+    [0, 2, -4],
+])
+triangle = Triangle(points)
 
-camera.zoom(0.75)
-
-num_frames = 60
-q = np.array([0, 1, 0, 1.0/num_frames])
-for frame in range(num_frames):
-    if frame > 0:
-        camera.rotate(q)
-    """ sphere.center = camera.pos + 3*camera.d_scr """
-    camera.draw_sphere(sphere)
-    img = cv2.imwrite(f"frames/frame{frame:03d}.jpg", np.swapaxes(camera.screen.pixels, 0, 1))
+num_frames = 180
+frames = np.arange(0, num_frames)
+q = np.array([0, 1, 0, np.pi/num_frames])
+for frame in tqdm(frames):
+    triangle.rotate(q)
+    camera.draw_triangle(triangle)
+    img = cv2.imwrite(f"frames/triangle_{frame:03d}.png", np.swapaxes(camera.screen.pixels, 0, 1))

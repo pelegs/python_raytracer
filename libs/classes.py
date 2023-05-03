@@ -37,7 +37,7 @@ class Line:
         """
         return self.start + t * self.direction
 
-    def intersect_sphere(self, sphere):
+    def intersects_sphere(self, sphere):
         oc = self.start - sphere.center
         a = norm2(self.direction)
         b = 2 * np.dot(oc, self.direction)
@@ -47,6 +47,12 @@ class Line:
             return -1
         else:
             return -(b + np.sqrt(D))/(2*a)
+
+    def intersects_triangle(self, triangle):
+        p = triangle.line_intersect(self)
+        if not p is None:
+            return triangle.point_inside(p)
+        return False
 
     def __str__(self):
         return f"start: {self.start}, direction: {self.direction}"
@@ -160,10 +166,11 @@ class Triangle:
     three sides of the triangle and the plane it lies on.
     """
 
-    def __init__(self, vertices):
+    def __init__(self, vertices, color=GREEN):
         self.vertices = vertices
         self.create_sides()
         self.create_plane()
+        self.color = color
 
     def create_sides(self):
         # TODO: add case where sides are colinear
@@ -175,6 +182,7 @@ class Triangle:
             ]
         )
         self.sides = [Side(pair) for pair in pairs]
+        self.center = np.mean(self.vertices, axis=0)
 
     def create_plane(self):
         self.plane = Plane.from_three_points(self.vertices)
@@ -182,9 +190,9 @@ class Triangle:
     def point_inside(self, p):
         """Checks whether a given point p is inside the triangle."""
         trans_triangle = self.vertices - p
-        u = np.cross(trans_triangle[1], trans_triangle[2])
-        v = np.cross(trans_triangle[2], trans_triangle[0])
-        w = np.cross(trans_triangle[0], trans_triangle[1])
+        u = cross(trans_triangle[1], trans_triangle[2])
+        v = cross(trans_triangle[2], trans_triangle[0])
+        w = cross(trans_triangle[0], trans_triangle[1])
         if np.dot(u, v) < 0:
             return False
         if np.dot(u, w) < 0:
@@ -198,7 +206,7 @@ class Triangle:
         returns the point of intersection.
         """
         p = self.plane.get_line_intersection(line)
-        if p and self.point_inside(p):
+        if not p is None and self.point_inside(p):
             return p
         return False
 
@@ -208,6 +216,11 @@ class Triangle:
         the triangle.
         """
         return self.plane.reflect(direction)
+
+    def rotate(self, q):
+        self.vertices = rotate_around(self.vertices, q, self.center)
+        self.create_sides()
+        self.create_plane()
 
     def __str__(self):
         return f"""
@@ -397,15 +410,29 @@ class Camera:
         """
         w, h = self.screen.resolution[:2]
         self.screen.pixels = np.zeros((w, h, 3), dtype=np.int16)
-        for i in tqdm(range(self.screen.resolution[0])):
+        for i in tqdm(range(self.screen.resolution[0]), leave=False):
             for j in range(self.screen.resolution[1]):
                 ray = Line(self.pos, self.dir_to_pixel_center((i, j)))
-                t = ray.intersect_sphere(sphere)
+                t = ray.intersects_sphere(sphere)
                 if t > 0:
                     p = ray.at_point(t)
                     f = np.abs(np.dot(ray.direction, sphere.surface_normal(p)))
                     """ self.screen.pixels[i, j] = (sphere.color * f).astype(np.int16) """
                     self.screen.pixels[i, j] = (sphere.surface_normal(p)*255*f).astype(np.int16)
+
+    def draw_triangle(self, triangle):
+        """
+        This is just a test! Will be deleted later.
+        """
+        w, h = self.screen.resolution[:2]
+        self.screen.pixels = np.zeros((w, h, 3), dtype=np.int16)
+        for i in tqdm(range(self.screen.resolution[0]), leave=False):
+            for j in range(self.screen.resolution[1]):
+                ray = Line(self.pos, self.dir_to_pixel_center((i, j)))
+                if ray.intersects_triangle(triangle):
+                    f = np.dot(ray.direction, triangle.plane.normal)
+                    self.screen.pixels[i, j] = (triangle.color * np.abs(f)).astype(np.int16)
+
 
 
 class Ray:
