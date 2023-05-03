@@ -6,6 +6,7 @@ from scipy.spatial.transform import Rotation
 PRECISION = 1E-8
 I_ = np.identity(3)
 X_, Y_, Z_ = I_
+O_ = np.zeros(3)
 
 # Screen resolutions
 VGA_480p_4_3 = (640, 480)

@@ -223,9 +223,12 @@ class Triangle:
         """
         return self.plane.reflect(direction)
 
-    def rotate(self, q):
-        print(self.vertices)
-        self.vertices = rotate_around(self.vertices, q, self.center)
+    def rotate(self, q, point=None):
+        if point is None:
+            rotation_center = self.center
+        else:
+            rotation_center = point
+        self.vertices = rotate_around(self.vertices, q, rotation_center)
         self.create_sides()
         self.create_plane()
 
