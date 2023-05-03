@@ -1,5 +1,6 @@
 import numpy as np
 from .mathlib import *
+from queue import PriorityQueue as pq
 from tqdm import tqdm
 
 
@@ -49,10 +50,11 @@ class Line:
             return -(b + np.sqrt(D))/(2*a)
 
     def intersects_triangle(self, triangle):
-        p = triangle.line_intersect(self)
-        if not p is None:
-            return triangle.point_inside(p)
-        return False
+        t = triangle.line_intersect(self)
+        if t is not None:
+            if triangle.point_inside(self.at_point(t)):
+                return t
+        return None
 
     def __str__(self):
         return f"start: {self.start}, direction: {self.direction}"
@@ -125,7 +127,8 @@ class Plane:
             sx, sy, sz = line.start
             vx, vy, vz = line.direction
             t = -(a * sx + b * sy + c * sz + d) / (a * vx + b * vy + c * vz)
-            return line.at_point(t)
+            """ return line.at_point(t) """
+            return t
 
     def point_on_plane(self, p):
         return np.isclose(np.dot(self.normal, p), -1 * self.normal_form[3], PRECISION)
@@ -166,11 +169,12 @@ class Triangle:
     three sides of the triangle and the plane it lies on.
     """
 
-    def __init__(self, vertices, color=GREEN):
+    def __init__(self, vertices, color=GREEN, id=-1):
         self.vertices = vertices
         self.create_sides()
         self.create_plane()
         self.color = color
+        self.id = id
 
     def create_sides(self):
         # TODO: add case where sides are colinear
@@ -203,12 +207,14 @@ class Triangle:
         """
         Checkes if line intersects the triangle's plane such that the
         intersection point is inside the triangle. If it does, the function
-        returns the point of intersection.
+        returns the point of intersection. NOTE: right now returns the
+        t argument of line at the intersection point.
         """
-        p = self.plane.get_line_intersection(line)
-        if not p is None and self.point_inside(p):
-            return p
-        return False
+        t = self.plane.get_line_intersection(line)
+        if t is not None:
+            if self.point_inside(line.at_point(t)):
+                return t
+        return None
 
     def reflect(self, direction):
         """
@@ -420,7 +426,7 @@ class Camera:
                     """ self.screen.pixels[i, j] = (sphere.color * f).astype(np.int16) """
                     self.screen.pixels[i, j] = (sphere.surface_normal(p)*255*f).astype(np.int16)
 
-    def draw_triangle(self, triangle):
+    def draw_triangles(self, triangles):
         """
         This is just a test! Will be deleted later.
         """
@@ -428,21 +434,33 @@ class Camera:
         self.screen.pixels = np.zeros((w, h, 3), dtype=np.int16)
         for i in tqdm(range(self.screen.resolution[0]), leave=False):
             for j in range(self.screen.resolution[1]):
-                ray = Line(self.pos, self.dir_to_pixel_center((i, j)))
-                if ray.intersects_triangle(triangle):
-                    f = np.dot(ray.direction, triangle.plane.normal)
-                    self.screen.pixels[i, j] = (triangle.color * np.abs(f)).astype(np.int16)
+                ray = Ray(self.pos, self.dir_to_pixel_center((i, j)))
+                for triangle in triangles:
+                    t = ray.intersects_triangle(triangle)
+                    if t is not None:
+                        ray.add_hit(t, triangle)
+                if ray.has_hits():
+                    closest_triangle = ray.get_closest_hit()[1]
+                    f = np.dot(ray.direction, closest_triangle.plane.normal)
+                    self.screen.pixels[i, j] = (closest_triangle.color * np.abs(f)).astype(np.int16)
 
 
+class Ray(Line):
+    """docstring for Ray."""
+    def __init__(self, start, direction):
+        super(Ray, self).__init__(start, direction)
+        self.hits = pq()
+        self.color = BLACK
 
-class Ray:
-    """
-    TBW.
-    """
-    def __init__(self, origin, dir):
-        # more vars to come
-        self.line = Line(self.origin, self.dir)
+    def add_hit(self, t, object):
+        self.hits.put((t, object), block=False)
 
+    def has_hits(self):
+        return not self.hits.empty()
+
+    def get_closest_hit(self):
+        if self.has_hits():
+            return self.hits.get(block=False)
 
 
 if __name__ == "__main__":
