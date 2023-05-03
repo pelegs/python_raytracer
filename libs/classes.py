@@ -224,6 +224,7 @@ class Triangle:
         return self.plane.reflect(direction)
 
     def rotate(self, q):
+        print(self.vertices)
         self.vertices = rotate_around(self.vertices, q, self.center)
         self.create_sides()
         self.create_plane()
@@ -453,7 +454,10 @@ class Ray(Line):
         self.color = BLACK
 
     def add_hit(self, t, object):
-        self.hits.put((t, object), block=False)
+        try:
+            self.hits.put((t, object), block=False)
+        except:
+            print(t, object.id)
 
     def has_hits(self):
         return not self.hits.empty()
