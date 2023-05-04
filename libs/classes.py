@@ -441,7 +441,7 @@ class Camera:
         """
         return unit(self.screen.get_pixel_center_wc(indices)-self.pos)
 
-    def draw_triangles(self, triangles):
+    def draw_triangles(self, triangles, samples=10):
         """
         This is just a test! Will be deleted later.
         """
@@ -451,24 +451,27 @@ class Camera:
             for j in range(self.screen.resolution[1]):
                 rays = [
                     Ray(self.pos, screen_point)
-                    for screen_point in self.screen.rand_pts_in_pixel(
-                        indices=(i, j), n=10
+                    for screen_point in self.screen.rand_pts_in_pixel_wc(
+                        indices=(i, j), n=samples,
                     )
                 ]
-                for ray in rays:
-                    ray = Ray(self.pos, self.dir_to_pixel_center((i, j)))
+                pixel_color = np.zeros((samples, 3), dtype=np.int16)
+                for k, ray in enumerate(rays):
                     for triangle in triangles:
                         t = ray.intersects_triangle(triangle)
-                        if t is not None:
+                        if t is not None and t > 0:
                             ray.add_hit(t, triangle)
                     if ray.has_hits():
                         closest_triangle = ray.get_closest_hit()[1]
                         f = np.dot(
                             ray.direction, closest_triangle.plane.normal
                         )
-                        self.screen.pixels[i, j] = (
+                        pixel_color[k] = (
                             closest_triangle.color * np.abs(f)
                         ).astype(np.int16)
+                self.screen.pixels[i, j] = np.mean(
+                    pixel_color, axis=0
+                ).astype(np.int16)
 
 
 class Ray(Line):

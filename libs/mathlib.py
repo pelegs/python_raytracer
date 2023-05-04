@@ -73,6 +73,21 @@ def cross(v1, v2):
     ])
 
 
+def rotation_x(t):
+    s, c = np.sin(t/2), np.cos(t/2)
+    return np.array([s, 0, 0, c])
+
+
+def rotation_y(t):
+    s, c = np.sin(t/2), np.cos(t/2)
+    return np.array([0, s, 0, c])
+
+
+def rotation_z(t):
+    s, c = np.sin(t/2), np.cos(t/2)
+    return np.array([0, 0, s, c])
+
+
 def get_rotation(vs, vt):
     """
     Returns quaternion q which rotates vs s.t. it is pointing in the
