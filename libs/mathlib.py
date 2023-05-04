@@ -7,6 +7,14 @@ PRECISION = 1E-8
 I_ = np.identity(3)
 X_, Y_, Z_ = I_
 O_ = np.zeros(3)
+HALVES_2D = np.array([0.5, 0.5])
+CORNERS_FROM_CENTER = np.array([
+    [-0.5, -0.5],  # NW
+    [0.5, -0.5],   # NE
+    [0.5, 0.5],    # SE
+    [-0.5, 0.5],   # SW
+])
+
 
 # Screen resolutions
 VGA_480p_4_3 = (640, 480)
@@ -16,6 +24,7 @@ VGA_480p_16_9 = (848, 480)
 HD_720p_4_3 = (960, 720)
 HD_720p_16_9 = (1280, 720)
 HD_1080p_16_9 = (1920, 1080)
+
 
 
 def unit(v):

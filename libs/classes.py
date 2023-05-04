@@ -306,30 +306,57 @@ class Screen:
         self.plane = Plane.from_three_points(self.points_wcs[:3])
         self.calc_screen_basis_vecs()
 
-    def get_pixel_center_sc(self, indices):
-        # TODO: rewrite to accept an array of indices
+    def indices_check(self, indices):
         i, j = indices
         if not (0 <= i < self.resolution[0]):
-            raise ValueError(
-                f"""Index {i} greater than horizontal pixel range.
-                Allowed range is [0, {self.resolution[0]-1}].
-                """
-            )
+            return f"""Index {i} greater than horizontal pixel range.
+Allowed range is [0, {self.resolution[0]-1}]."""
         if not (0 <= j < self.resolution[1]):
-            raise ValueError(
-                f"""Index {j} greater than vertical pixel range.
-                Allowed range is [0, {self.resolution[1]-1}].
-                """
-            )
+            return f"""Index {j} greater than vertical pixel range.
+Allowed range is [0, {self.resolution[1]-1}]."""
+        return False
+
+    # vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv #
+    # TODO: rewrite to accept an array of pixel indices
+    def get_pixel_center_sc(self, indices):
+        index_error = self.indices_check(indices)
+        if index_error:
+            raise ValueError(index_error)
         if not isinstance(indices, np.ndarray):
             indices = np.array([indices]).flatten()
-        return (indices + np.array([0.5, 0.5])) * self.pixel_side
+        return (indices + HALVES_2D) * self.pixel_side
+
+    def get_pixel_corners_sc(self, indices):
+        index_error = self.indices_check(indices)
+        if index_error:
+            raise ValueError(index_error)
+        if not isinstance(indices, np.ndarray):
+            indices = np.array([indices]).flatten()
+        dpxl = CORNERS_FROM_CENTER*self.pixel_side
+        return self.get_pixel_center_sc(indices) + dpxl
 
     def get_pixel_center_wc(self, indices):
-        # TODO: rewrite to accept an array of points on screen
         point_sc = self.get_pixel_center_sc(indices)
         point_sc = np.array([point_sc])
         return self.sc_to_wc(point_sc)
+
+    def get_pixel_corners_wc(self, indices):
+        points_sc = self.get_pixel_corners_sc(indices)
+        return self.sc_to_wc(points_sc)
+
+    def rand_pts_in_pixel_sc(self, indices, n):
+        corners_sc = self.get_pixel_corners_sc(indices)
+        nw_corner_sc = corners_sc[0]
+        se_corner_sc = corners_sc[2]
+        return np.random.uniform(
+            low=nw_corner_sc,
+            high=se_corner_sc,
+            size=(n, 2),
+        )
+
+    def rand_pts_in_pixel_wc(self, indices, n=10):
+        return self.sc_to_wc(self.rand_pts_in_pixel_sc(indices, n))
+    # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ #
 
     def calc_screen_basis_vecs(self):
         """
@@ -414,22 +441,6 @@ class Camera:
         """
         return unit(self.screen.get_pixel_center_wc(indices)-self.pos)
 
-    def draw_sphere(self, sphere):
-        """
-        This is just a test! Will be deleted later.
-        """
-        w, h = self.screen.resolution[:2]
-        self.screen.pixels = np.zeros((w, h, 3), dtype=np.int16)
-        for i in tqdm(range(self.screen.resolution[0]), leave=False):
-            for j in range(self.screen.resolution[1]):
-                ray = Line(self.pos, self.dir_to_pixel_center((i, j)))
-                t = ray.intersects_sphere(sphere)
-                if t > 0:
-                    p = ray.at_point(t)
-                    f = np.abs(np.dot(ray.direction, sphere.surface_normal(p)))
-                    """ self.screen.pixels[i, j] = (sphere.color * f).astype(np.int16) """
-                    self.screen.pixels[i, j] = (sphere.surface_normal(p)*255*f).astype(np.int16)
-
     def draw_triangles(self, triangles):
         """
         This is just a test! Will be deleted later.
@@ -438,15 +449,26 @@ class Camera:
         self.screen.pixels = np.zeros((w, h, 3), dtype=np.int16)
         for i in tqdm(range(self.screen.resolution[0]), leave=False):
             for j in range(self.screen.resolution[1]):
-                ray = Ray(self.pos, self.dir_to_pixel_center((i, j)))
-                for triangle in triangles:
-                    t = ray.intersects_triangle(triangle)
-                    if t is not None:
-                        ray.add_hit(t, triangle)
-                if ray.has_hits():
-                    closest_triangle = ray.get_closest_hit()[1]
-                    f = np.dot(ray.direction, closest_triangle.plane.normal)
-                    self.screen.pixels[i, j] = (closest_triangle.color * np.abs(f)).astype(np.int16)
+                rays = [
+                    Ray(self.pos, screen_point)
+                    for screen_point in self.screen.rand_pts_in_pixel(
+                        indices=(i, j), n=10
+                    )
+                ]
+                for ray in rays:
+                    ray = Ray(self.pos, self.dir_to_pixel_center((i, j)))
+                    for triangle in triangles:
+                        t = ray.intersects_triangle(triangle)
+                        if t is not None:
+                            ray.add_hit(t, triangle)
+                    if ray.has_hits():
+                        closest_triangle = ray.get_closest_hit()[1]
+                        f = np.dot(
+                            ray.direction, closest_triangle.plane.normal
+                        )
+                        self.screen.pixels[i, j] = (
+                            closest_triangle.color * np.abs(f)
+                        ).astype(np.int16)
 
 
 class Ray(Line):
