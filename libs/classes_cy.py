@@ -2,6 +2,7 @@ import numpy as np
 from .mathlib import *
 from queue import PriorityQueue as pq
 from tqdm import tqdm
+from cymath import *
 
 
 # Colors
@@ -10,9 +11,13 @@ WHITE = np.array([255, 255, 255])
 BLUE = np.array([255, 0, 0])
 GREEN = np.array([0, 255, 0])
 RED = np.array([0, 0, 255])
-""" CYAN = np.array([0, 255, 255]) """
-""" MAGENTA = np.array([255, 0, 255]) """
-""" YELLOW = np.array([255, 255, 0]) """
+CYAN = np.array([255, 255, 0])
+MAGENTA = np.array([255, 0, 255])
+YELLOW = np.array([0, 255, 255])
+COLORS = [
+    BLACK, WHITE, BLUE, GREEN, RED, CYAN, MAGENTA, YELLOW,
+]
+print(COLORS[0])
 
 
 class Line:
@@ -102,7 +107,7 @@ class Plane:
         """
         v1 = points[1] - points[0]
         v2 = points[2] - points[0]
-        normal = unit(py_cross(v1, v2))
+        normal = unit(cy_cross(v1, v2))
         return cls(normal, points[0])
 
     def get_normal_form(self):
@@ -120,14 +125,9 @@ class Plane:
         Returns the point where line intersects the plane. If such point
         doesn't exist it return False.
         """
-        if np.dot(self.normal, line.direction) == 0:
-            return None
-        a, b, c, d = self.normal_form
-        sx, sy, sz = line.start
-        vx, vy, vz = line.direction
-        t = -(a * sx + b * sy + c * sz + d) / (a * vx + b * vy + c * vz)
-        """ return line.at_point(t) """
-        return t
+        return line_plane_intersection(
+            line.start, line.direction, self.normal_form
+        )
 
     def point_on_plane(self, p):
         return np.isclose(
@@ -194,15 +194,7 @@ class Triangle:
 
     def point_inside(self, p):
         """Checks whether a given point p is inside the triangle."""
-        trans_triangle = self.vertices - p
-        u = py_cross(trans_triangle[1], trans_triangle[2])
-        v = py_cross(trans_triangle[2], trans_triangle[0])
-        w = py_cross(trans_triangle[0], trans_triangle[1])
-        if np.dot(u, v) < 0:
-            return False
-        if np.dot(u, w) < 0:
-            return False
-        return True
+        return point_in_triangle(p, self.vertices)
 
     def line_intersect(self, line):
         """
@@ -370,7 +362,7 @@ Allowed range is [0, {self.resolution[1]-1}]."""
         """
         u = self.points_wcs[1] - self.points_wcs[0]
         v = unit(self.points_wcs[3] - self.points_wcs[0])
-        w = py_cross(u, v)
+        w = cy_cross(u, v)
         self.basis_vecs = np.array([u, v, w])
 
     def rotate(self, q, point=None):

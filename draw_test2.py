@@ -1,9 +1,10 @@
 import cv2
 from libs.mathlib import *
-from libs.classes import *
+from libs.classes_cy import *
 
 
-screen = Screen(resolution=(640, 480))
+""" screen = Screen(resolution=(640, 480)) """
+screen = Screen(resolution=(160, 120))
 camera = Camera(screen=screen)
 camera.translate(0.25 * Z_)
 """ t = np.radians(-10) """
@@ -52,7 +53,7 @@ cube_points = np.array(
 )
 
 triangles = [
-    Triangle(cube_points[n : n + 3], color=RED, id=i + 1)
+    Triangle(cube_points[n:n+3], color=RED, id=i+1)
     for i, n in enumerate(np.arange(0, 36, 3))
 ]
 
