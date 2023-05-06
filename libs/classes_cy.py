@@ -2,18 +2,19 @@ import numpy as np
 from .mathlib import *
 from queue import PriorityQueue as pq
 from tqdm import tqdm
+import cv2
 from libs.cymath import *
 
 
 # Colors
-BLACK = np.array([0, 0, 0])
-WHITE = np.array([255, 255, 255])
-BLUE = np.array([255, 0, 0])
-GREEN = np.array([0, 255, 0])
-RED = np.array([0, 0, 255])
-CYAN = np.array([255, 255, 0])
-MAGENTA = np.array([255, 0, 255])
-YELLOW = np.array([0, 255, 255])
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+BLUE = (255, 0, 0)
+GREEN = (0, 255, 0)
+RED = (0, 0, 255)
+CYAN = (255, 255, 0)
+MAGENTA = (255, 0, 255)
+YELLOW = (0, 255, 255)
 COLORS = [
     BLACK, WHITE, BLUE, GREEN, RED, CYAN, MAGENTA, YELLOW,
 ]
@@ -171,7 +172,7 @@ class Triangle:
         self.vertices = vertices
         self.create_sides()
         self.create_plane()
-        self.color = color
+        self.set_color(color)
         self.id = id
 
     def create_sides(self):
@@ -188,6 +189,9 @@ class Triangle:
 
     def create_plane(self):
         self.plane = Plane.from_three_points(self.vertices)
+
+    def set_color(self, color):
+        self.color = np.array(color, dtype=np.uint8)
 
     def point_inside(self, p):
         """Checks whether a given point p is inside the triangle."""
@@ -266,10 +270,11 @@ class Screen:
         # resolution related
         self.aspect_ratio = resolution[0] / resolution[1]
         self.AR_ = 1.0 / self.aspect_ratio
-        self.pixels = np.zeros(np.append(resolution, 3), dtype=np.int16)
+        self.pixels = np.zeros(np.append(resolution, 3), dtype=np.uint8)
         self.pixel_side = 1.0 / self.pixels.shape[0]
         self.resolution = self.pixels.shape
-        self.projected = np.zeros(shape=self.pixels.shape[:2])
+        self.projected = np.ones(shape=self.pixels.shape, dtype=np.uint8) * 255
+        self.non_zero_pixels = []
 
         # Screen coordinate system (scs)
         self.corners_scs = np.array(
@@ -389,17 +394,17 @@ Allowed range is [0, {self.resolution[1]-1}]."""
         """
         TBW
         """
-        points_transformed = np.copy(points)
-        if not same_direction(self.plane.normal, -Z_):
-            q1 = get_rotation(self.plane.normal, -Z_)
-            points_transformed = rotate_vecs(points_transformed, q1)
-        if not same_direction(self.basis_vecs[0], X_):
-            q2 = get_rotation(self.basis_vecs[0], X_)
-            points_transformed = rotate_vecs(points_transformed, q2)
-        points_transformed = points_transformed[:2]
-        w = self.pixels.shape[0] # No need for h because coords are
-                                 # already normalized to aspect ratio
-        return ((points_transformed + np.array([0.5, -0.5*self.AR_])) * np.array([w, -w])).astype(np.int16)
+        points_transformed = np.copy(points[:2])
+        """ if not same_direction(self.plane.normal, -Z_): """
+        """     q1 = get_rotation(self.plane.normal, -Z_) """
+        """     points_transformed = rotate_vecs(points_transformed, q1) """
+        """ if not same_direction(self.basis_vecs[0], X_): """
+        """     q2 = get_rotation(self.basis_vecs[0], X_) """
+        """     points_transformed = rotate_vecs(points_transformed, q2) """
+        """ points_transformed = points_transformed[:2] """
+        w = self.pixels.shape[0]    # No need for h because coords are
+                                    # already normalized to aspect ratio
+        return ((points_transformed + np.array([0.5, -0.5*self.AR_])) * np.array([w, -w])).astype(int)
 
 
 class Camera:
@@ -449,48 +454,65 @@ class Camera:
         return unit(self.screen.get_pixel_center_wc(indices)-self.pos)
 
     def project_triangles(self, triangles):
+        self.screen.projected = np.zeros(
+            shape=self.screen.pixels.shape, dtype=np.uint8
+        )
         for triangle in triangles:
-            for point in triangle.vertices:
+            indices = np.zeros((3, 2), dtype=np.int32)
+            for i, point in enumerate(triangle.vertices):
                 line = Line.from_two_points([self.pos, point])
                 t = self.screen.plane.get_line_intersection(line)
                 p = line.at_point(t)
-                indices = self.screen.projections_to_pixels(p)
-                if not self.screen.indices_check(indices):
-                    i, j = indices
-                    self.screen.projected[i, j] = 1
+                indices[i] = self.screen.projections_to_pixels(p)
+            j = np.random.randint(2, len(COLORS))
+            cv2.fillPoly(self.screen.projected, pts=[indices], color=COLORS[j])
 
+    def projected_blur(self, n=3):
+        kernel = np.ones((n, n), dtype=np.float32) / n**2
+        self.screen.projected = cv2.filter2D(
+            self.screen.projected, -1, kernel
+        )
 
-    def draw_triangles(self, triangles, samples=10):
+    def apply_mask(self):
+        gray = cv2.cvtColor(self.screen.projected, cv2.COLOR_BGR2GRAY)
+        self.screen.non_zero_pixels = np.column_stack(
+            np.where(gray > 3)
+        )
+
+    def draw_triangles(self, triangles, samples=10, mask=True):
         """
         This is just a test! Will be deleted later.
         """
         w, h = self.screen.resolution[:2]
-        self.screen.pixels = np.zeros((w, h, 3), dtype=np.int16)
-        for i in tqdm(range(self.screen.resolution[0]), leave=False):
-            for j in range(self.screen.resolution[1]):
-                rays = [
-                    Ray(self.pos, screen_point)
-                    for screen_point in self.screen.rand_pts_in_pixel_wc(
-                        indices=(i, j), n=samples,
+        self.screen.pixels = np.zeros((w, h, 3), dtype=np.uint8)
+        if mask:
+            progress = tqdm(self.screen.non_zero_pixels, leave=False)
+        else:
+            progress = tqdm([(i, j) for i in range(w) for j in range(h)])
+        for i, j in progress:
+            rays = [
+                Ray(self.pos, screen_point)
+                for screen_point in self.screen.rand_pts_in_pixel_wc(
+                    indices=(i, j), n=samples,
+                )
+            ]
+            pixel_color = np.zeros((samples, 3), dtype=np.uint8)
+            for k, ray in enumerate(rays):
+                for triangle in triangles:
+                    t = ray.intersects_triangle(triangle)
+                    if t is not None and t > 0:
+                        ray.add_hit(t, triangle)
+                if ray.has_hits():
+                    closest_triangle = ray.get_closest_hit()[1]
+                    f = np.dot(
+                        ray.direction, closest_triangle.plane.normal
                     )
-                ]
-                pixel_color = np.zeros((samples, 3), dtype=np.int16)
-                for k, ray in enumerate(rays):
-                    for triangle in triangles:
-                        t = ray.intersects_triangle(triangle)
-                        if t is not None and t > 0:
-                            ray.add_hit(t, triangle)
-                    if ray.has_hits():
-                        closest_triangle = ray.get_closest_hit()[1]
-                        f = np.dot(
-                            ray.direction, closest_triangle.plane.normal
-                        )
-                        pixel_color[k] = (
-                            closest_triangle.color * np.abs(f)
-                        ).astype(np.int16)
-                self.screen.pixels[i, j] = np.mean(
-                    pixel_color, axis=0
-                ).astype(np.int16)
+                    pixel_color[k] = (
+                        (closest_triangle.color).astype(np.double) * np.abs(f)
+                    ).astype(np.uint8)
+            self.screen.pixels[i, j] = np.mean(
+                pixel_color, axis=0
+            ).astype(np.uint8)
 
 
 class Ray(Line):
