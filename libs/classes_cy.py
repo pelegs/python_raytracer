@@ -17,7 +17,6 @@ YELLOW = np.array([0, 255, 255])
 COLORS = [
     BLACK, WHITE, BLUE, GREEN, RED, CYAN, MAGENTA, YELLOW,
 ]
-print(COLORS[0])
 
 
 class Line:
@@ -41,7 +40,7 @@ class Line:
         L(t) = start + direction*t. This function returns a point on the
         line given the parameter t.
         """
-        return self.start + t * self.direction
+        return line_at_point(self.start, self.direction, t)
 
     def intersects_sphere(self, sphere):
         oc = self.start - sphere.center
@@ -194,7 +193,7 @@ class Triangle:
 
     def point_inside(self, p):
         """Checks whether a given point p is inside the triangle."""
-        return point_in_triangle(p, self.vertices)
+        return point_in_triangle(self.vertices, p)
 
     def line_intersect(self, line):
         """
@@ -272,6 +271,7 @@ class Screen:
         self.pixels = np.zeros(np.append(resolution, 3), dtype=np.int16)
         self.pixel_side = 1.0 / self.pixels.shape[0]
         self.resolution = self.pixels.shape
+        self.projected = np.zeros(np.append(resolution, 2), dtype=np.int16)
 
         # Screen coordinate system (scs)
         self.corners_scs = np.array(
@@ -433,6 +433,15 @@ class Camera:
         pixel with given indices.
         """
         return unit(self.screen.get_pixel_center_wc(indices)-self.pos)
+
+    def project_triangles(self, triangles):
+        for triangle in triangles:
+            for point in triangle.vertices:
+                line = Line.from_two_points(self.pos, point)
+                projected_point = self.screen.plane.get_line_intersection(
+                    line
+                ).astype(np.int16)
+                print(line)
 
     def draw_triangles(self, triangles, samples=10):
         """
