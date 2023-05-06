@@ -2,6 +2,7 @@ import numpy as np
 from .mathlib import *
 from queue import PriorityQueue as pq
 from tqdm import tqdm
+from cross import cross
 
 
 # Colors

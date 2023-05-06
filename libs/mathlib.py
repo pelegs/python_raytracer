@@ -56,21 +56,19 @@ def angle_between(v1, v2, units=False):
     raise ValueError(f"{c} is not a valid argument to acos.")
 
 
-def cross(v1, v2):
-    """
-    The cross product needs to be redefined because of an annoying
-    behaviour of pyright: it marks anything following cross() as
-    unreachable (similar issue with pylance:
-    https://github.com/microsoft/pylance-release/issues/3195)
-    It is what it is ¯\_(ツ)_/¯
-    """
-    v1x, v1y, v1z = v1
-    v2x, v2y, v2z = v2
-    return np.array([
-        v1y*v2z - v1z*v2y,
-        v1z*v2x - v1x*v2z,
-        v1x*v2y - v1y*v2x
-    ])
+""" def cross(v1, v2): """
+"""     The cross product needs to be redefined because of an annoying """
+"""     behaviour of pyright: it marks anything following cross() as """
+"""     unreachable (similar issue with pylance: """
+"""     https://github.com/microsoft/pylance-release/issues/3195) """
+"""     It is what it is ¯\_(ツ)_/¯ """
+"""     v1x, v1y, v1z = v1 """
+"""     v2x, v2y, v2z = v2 """
+"""     return np.array([ """
+"""         v1y*v2z - v1z*v2y, """
+"""         v1z*v2x - v1x*v2z, """
+"""         v1x*v2y - v1y*v2x """
+"""     ]) """
 
 
 def rotation_x(t):
