@@ -2,7 +2,7 @@ import numpy as np
 from .mathlib import *
 from queue import PriorityQueue as pq
 from tqdm import tqdm
-from cymath import *
+from libs.cymath import *
 
 
 # Colors
@@ -128,10 +128,8 @@ class Plane:
             line.start, line.direction, self.normal_form
         )
 
-    def point_on_plane(self, p):
-        return np.isclose(
-            np.dot(self.normal, p), -1 * self.normal_form[3], PRECISION
-        )
+    def point_on(self, p):
+        return point_on_plane(self.normal_form, p, 1.5E-5)
 
     def __str__(self):
         normal_txt = ",".join(map(str, self.normal))
@@ -271,7 +269,7 @@ class Screen:
         self.pixels = np.zeros(np.append(resolution, 3), dtype=np.int16)
         self.pixel_side = 1.0 / self.pixels.shape[0]
         self.resolution = self.pixels.shape
-        self.projected = np.zeros(np.append(resolution, 2), dtype=np.int16)
+        self.projected = np.zeros(shape=self.pixels.shape[:2])
 
         # Screen coordinate system (scs)
         self.corners_scs = np.array(
@@ -282,8 +280,8 @@ class Screen:
                 [1, self.AR_],
                 [0, self.AR_],
             ]
-        )
-        self.center_scs = np.array([0.5, 0.5 * self.AR_])
+        , dtype=np.double)
+        self.center_scs = np.array([0.5, 0.5 * self.AR_], dtype=np.double)
 
         # World coordinate system (wcs)
         self.points_wcs = np.array(
@@ -295,7 +293,7 @@ class Screen:
                 [-0.5, -0.5 * self.AR_, -1],
                 [0, 0, -1],
             ]
-        )
+        , dtype=np.double)
         self.plane = Plane.from_three_points(self.points_wcs[:3])
         self.calc_screen_basis_vecs()
 
@@ -387,6 +385,22 @@ Allowed range is [0, {self.resolution[1]-1}]."""
         sc_3 = np.c_[sc, np.zeros(n)]
         return np.dot(sc_3, self.basis_vecs) + self.points_wcs[0]
 
+    def projections_to_pixels(self, points):
+        """
+        TBW
+        """
+        points_transformed = np.copy(points)
+        if not same_direction(self.plane.normal, -Z_):
+            q1 = get_rotation(self.plane.normal, -Z_)
+            points_transformed = rotate_vecs(points_transformed, q1)
+        if not same_direction(self.basis_vecs[0], X_):
+            q2 = get_rotation(self.basis_vecs[0], X_)
+            points_transformed = rotate_vecs(points_transformed, q2)
+        points_transformed = points_transformed[:2]
+        w = self.pixels.shape[0] # No need for h because coords are
+                                 # already normalized to aspect ratio
+        return ((points_transformed + np.array([0.5, -0.5*self.AR_])) * np.array([w, -w])).astype(np.int16)
+
 
 class Camera:
     """
@@ -437,11 +451,14 @@ class Camera:
     def project_triangles(self, triangles):
         for triangle in triangles:
             for point in triangle.vertices:
-                line = Line.from_two_points(self.pos, point)
-                projected_point = self.screen.plane.get_line_intersection(
-                    line
-                ).astype(np.int16)
-                print(line)
+                line = Line.from_two_points([self.pos, point])
+                t = self.screen.plane.get_line_intersection(line)
+                p = line.at_point(t)
+                indices = self.screen.projections_to_pixels(p)
+                if not self.screen.indices_check(indices):
+                    i, j = indices
+                    self.screen.projected[i, j] = 1
+
 
     def draw_triangles(self, triangles, samples=10):
         """

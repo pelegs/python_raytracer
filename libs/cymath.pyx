@@ -22,6 +22,15 @@ def cy_cross(
     w[2] = u[0]*v[1] - u[1]*v[0]
     return w
 
+def point_on_plane(
+        np.ndarray[DTYPE_t, ndim=1] plane_normal,
+        np.ndarray[DTYPE_t, ndim=1] point,
+        double pr,
+        ):
+    cdef double x = dot(plane_normal[:3], point)
+    cdef double y = -plane_normal[3]
+    return y-pr <= x <= y+pr
+
 def line_at_point(
         np.ndarray[DTYPE_t, ndim=1] line_start,
         np.ndarray[DTYPE_t, ndim=1] line_dir,

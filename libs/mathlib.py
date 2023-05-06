@@ -4,10 +4,11 @@ from scipy.spatial.transform import Rotation
 
 # General constants
 PRECISION = 1E-8
-I_ = np.identity(3)
+I_ = np.identity(3, dtype=np.double)
 X_, Y_, Z_ = I_
-O_ = np.zeros(3)
-HALVES_2D = np.array([0.5, 0.5])
+O_ = np.zeros(3, dtype=np.double)
+HALVES_2D = np.array([0.5, 0.5], dtype=np.double)
+HALVES_2D_Z0 = np.array([0.5, 0.5, 0.0], dtype=np.double)
 CORNERS_FROM_CENTER = np.array([
     [-0.5, -0.5],  # NW
     [0.5, -0.5],   # NE
@@ -94,7 +95,7 @@ def get_rotation(vs, vt):
     """
     t = angle_between(vs, vt)
     s, c = np.sin(t/2), np.cos(t/2)
-    r = unit(cross(vs, vt))
+    r = unit(py_cross(vs, vt))
     q = np.append(r*s, c)
     return q
 
