@@ -9,6 +9,7 @@ from libs.cymath import *
 # Colors
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
+GREY = (100, 100, 100)
 BLUE = (255, 0, 0)
 GREEN = (0, 255, 0)
 RED = (0, 0, 255)
@@ -16,7 +17,7 @@ CYAN = (255, 255, 0)
 MAGENTA = (255, 0, 255)
 YELLOW = (0, 255, 255)
 COLORS = [
-    BLACK, WHITE, BLUE, GREEN, RED, CYAN, MAGENTA, YELLOW,
+    BLACK, WHITE, GREY, BLUE, GREEN, RED, CYAN, MAGENTA, YELLOW,
 ]
 
 
@@ -465,7 +466,7 @@ class Camera:
                 p = line.at_point(t)
                 y, x = self.screen.projections_to_pixels(p)
                 indices[i] = np.array([x, y], dtype=np.int32)
-            j = np.random.randint(2, len(COLORS))
+            j = np.random.randint(3, len(COLORS))
             cv2.fillPoly(self.screen.projected, pts=[indices], color=COLORS[j])
 
     def projected_blur(self, n=3):
@@ -485,6 +486,7 @@ class Camera:
         This is just a test! Will be deleted later.
         """
         w, h = self.screen.resolution[:2]
+        self.screen.pixels = np.zeros((w, h, 3), dtype=np.uint8)
         if mask:
             progress = tqdm(self.screen.non_zero_pixels, leave=False)
         else:
@@ -534,6 +536,33 @@ class Ray(Line):
     def get_closest_hit(self):
         if self.has_hits():
             return self.hits.get(block=False)
+
+
+class Mesh:
+    """
+    TBW
+    """
+
+    def __init__(self, faces, color=GREY, id=-1):
+        self.faces = faces
+        self.color = color
+        self.id = id
+        self.center = np.mean([face.center for face in self.faces], axis=0)
+
+    @classmethod
+    def from_vertices(cls, vertices, color=GREY, id=-1):
+        triangles = [
+            Triangle(vertices[n:n+3], id=i)
+            for i, n in enumerate(np.arange(0, vertices.shape[0], 3))
+        ]
+        return cls(triangles, color, id)
+
+    def rotate(self, q, point=None):
+        if point is None:
+            point = self.center
+        for face in self.faces:
+            face.rotate(q, point=point)
+
 
 
 if __name__ == "__main__":
