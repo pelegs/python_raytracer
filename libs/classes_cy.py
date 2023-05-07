@@ -458,12 +458,13 @@ class Camera:
             shape=self.screen.pixels.shape, dtype=np.uint8
         )
         for triangle in triangles:
-            indices = np.zeros((3, 2), dtype=np.int32)
+            indices = np.ones((3, 2), dtype=np.int32)
             for i, point in enumerate(triangle.vertices):
                 line = Line.from_two_points([self.pos, point])
                 t = self.screen.plane.get_line_intersection(line)
                 p = line.at_point(t)
-                indices[i] = self.screen.projections_to_pixels(p)
+                y, x = self.screen.projections_to_pixels(p)
+                indices[i] = np.array([x, y], dtype=np.int32)
             j = np.random.randint(2, len(COLORS))
             cv2.fillPoly(self.screen.projected, pts=[indices], color=COLORS[j])
 
@@ -484,7 +485,6 @@ class Camera:
         This is just a test! Will be deleted later.
         """
         w, h = self.screen.resolution[:2]
-        self.screen.pixels = np.zeros((w, h, 3), dtype=np.uint8)
         if mask:
             progress = tqdm(self.screen.non_zero_pixels, leave=False)
         else:

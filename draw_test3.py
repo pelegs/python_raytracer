@@ -3,7 +3,7 @@ from libs.mathlib import *
 from libs.classes_cy import *
 
 
-screen = Screen(resolution=(320, 240))
+screen = Screen(resolution=(640, 480))
 camera = Camera(screen=screen)
 
 cube_points = np.array(
@@ -64,6 +64,14 @@ triangles[9].set_color(CYAN)
 triangles[10].set_color(MAGENTA)
 triangles[11].set_color(YELLOW)
 
+cube_center = np.mean(cube_points, axis=0)
+t = np.radians(20)
+s, c = np.sin(t), np.cos(t)
+q = np.array([s, 0, 0, c])
+
+for triangle in triangles:
+    triangle.rotate(q, point=cube_center)
+
 camera.project_triangles(triangles)
 camera.projected_blur(n=5)
 camera.apply_mask()
@@ -71,7 +79,7 @@ img = cv2.imwrite(
     f"pics/anti_aliasing_colors_projected.png",
     np.swapaxes(camera.screen.projected, 0, 1)
 )
-camera.draw_triangles(triangles, samples=1, mask=False)
+camera.draw_triangles(triangles, samples=10, mask=True)
 img = cv2.imwrite(
     f"pics/anti_aliasing_colors.png",
     np.swapaxes(camera.screen.pixels, 0, 1)
