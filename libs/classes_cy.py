@@ -1,8 +1,9 @@
 import numpy as np
-from .mathlib import *
+""" from .mathlib import * """
 from queue import PriorityQueue as pq
 from tqdm import tqdm
 import cv2
+from random import choice as random_choice
 from libs.cymath import *
 
 
@@ -218,12 +219,14 @@ class Triangle:
         """
         return self.plane.reflect(direction)
 
-    def rotate(self, q, point=None):
+    def rotate(self, axis, point=None, angle=.0):
         if point is None:
             rotation_center = self.center
         else:
             rotation_center = point
-        self.vertices = rotate_around(self.vertices, q, rotation_center)
+        self.vertices = rotate_around_point(
+            self.vertices, axis, rotation_center, angle
+        )
         self.create_sides()
         self.create_plane()
 
@@ -369,10 +372,12 @@ Allowed range is [0, {self.resolution[1]-1}]."""
         w = cross(u, v)
         self.basis_vecs = np.array([u, v, w])
 
-    def rotate(self, q, point=None):
+    def rotate(self, axis, point=None, angle=.0):
         if point is None:
             point = self.points_wcs[4]
-        self.points_wcs = rotate_around(self.points_wcs, q, point)
+        self.points_wcs = rotate_around_point(
+            self.points_wcs, axis, point, angle
+        )
         self.plane = Plane.from_three_points(self.points_wcs[:3])
         self.calc_screen_basis_vecs()
 
@@ -395,14 +400,14 @@ Allowed range is [0, {self.resolution[1]-1}]."""
         """
         TBW
         """
-        points_transformed = np.copy(points[:2])
-        """ if not same_direction(self.plane.normal, -Z_): """
-        """     q1 = get_rotation(self.plane.normal, -Z_) """
-        """     points_transformed = rotate_vecs(points_transformed, q1) """
-        """ if not same_direction(self.basis_vecs[0], X_): """
-        """     q2 = get_rotation(self.basis_vecs[0], X_) """
-        """     points_transformed = rotate_vecs(points_transformed, q2) """
-        """ points_transformed = points_transformed[:2] """
+        points_transformed = points
+        if not same_direction(self.plane.normal, -Z_, PRECISION):
+            q1 = get_rotation(self.plane.normal, -Z_)
+            points_transformed = rotate_v_by_q(points_transformed, q1)
+        if not same_direction(self.basis_vecs[0], X_, PRECISION):
+            q2 = get_rotation(self.basis_vecs[0], X_)
+            points_transformed = rotate_v_by_q(points_transformed, q2)
+        points_transformed = points_transformed[:2]
         w = self.pixels.shape[0]    # No need for h because coords are
                                     # already normalized to aspect ratio
         return ((points_transformed + np.array([0.5, -0.5*self.AR_])) * np.array([w, -w])).astype(int)
@@ -417,7 +422,7 @@ class Camera:
     def __init__(
         self,
         pos=np.zeros(3),
-        d_scr=-Z_,
+        d_scr=-Z_.reshape((1,3)),
         rotation=0.0,
         screen=Screen(),
     ):
@@ -426,12 +431,14 @@ class Camera:
         self.rotation = rotation
         self.screen = screen
 
-    def rotate(self, q):
+    def rotate(self, axis, angle):
         """
         Rotates camera using the quaternion q.
         """
-        self.d_scr = rotate_around(self.d_scr, q, self.pos)
-        self.screen.rotate(q, self.pos)
+        self.d_scr = rotate_around_point(
+            self.d_scr, axis, self.pos, angle
+        )
+        self.screen.rotate(axis, self.pos, angle)
 
     def translate(self, dr):
         """
@@ -557,12 +564,23 @@ class Mesh:
         ]
         return cls(triangles, color, id)
 
-    def rotate(self, q, point=None):
+    def rotate(self, axis, point=None, angle=.0):
         if point is None:
             point = self.center
         for face in self.faces:
-            face.rotate(q, point=point)
+            face.rotate(axis, point, angle)
 
+    def translate(self, vec):
+        for face in self.faces:
+            face.translate(vec)
+
+    def color_randomly(
+            self, colors_list=[RED, GREEN, BLUE, CYAN, MAGENTA, YELLOW]
+        ):
+        for face1, face2 in zip(self.faces[::2], self.faces[1::2]):
+            random_color = random_choice(colors_list)
+            face1.set_color(random_color)
+            face2.set_color(random_color)
 
 
 if __name__ == "__main__":

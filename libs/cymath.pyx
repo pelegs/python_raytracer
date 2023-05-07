@@ -7,6 +7,33 @@ cimport cython
 ctypedef double DTYPE_t
 
 
+#############
+# Constants #
+#############
+
+PRECISION = 1E-8
+I_ = np.identity(3, dtype=np.double)
+X_, Y_, Z_ = I_
+O_ = np.zeros(3, dtype=np.double)
+HALVES_2D = np.array([0.5, 0.5], dtype=np.double)
+HALVES_2D_Z0 = np.array([0.5, 0.5, 0.0], dtype=np.double)
+CORNERS_FROM_CENTER = np.array([
+    [-0.5, -0.5],  # NW
+    [0.5, -0.5],   # NE
+    [0.5, 0.5],    # SE
+    [-0.5, 0.5],   # SW
+])
+
+# Screen resolutions
+VGA_480p_4_3 = (640, 480)
+VGA_480p_3_2 = (720, 480)
+VGA_480p_2_1 = (960, 480)
+VGA_480p_16_9 = (848, 480)
+HD_720p_4_3 = (960, 720)
+HD_720p_16_9 = (1280, 720)
+HD_1080p_16_9 = (1920, 1080)
+
+
 #####################
 # Vector operations #
 #####################
@@ -39,22 +66,35 @@ def unit(np.ndarray[DTYPE_t, ndim=1] v):
         raise ValueError("Can't normalize zero vectors")
     return v/sqrt(L)
 
+def scale_to(
+        np.ndarray[DTYPE_t, ndim=1] vec,
+        double L,
+    ):
+    return L*unit(vec)
+
+def same_direction(
+        np.ndarray[DTYPE_t, ndim=1] u,
+        np.ndarray[DTYPE_t, ndim=1] v,
+        double precision,
+    ):
+    return np.allclose(unit(u), unit(v), atol=precision)
+
 def distance2(
         np.ndarray[DTYPE_t, ndim=1] u,
         np.ndarray[DTYPE_t, ndim=1] v
-        ):
+    ):
     return norm2(u-v)
 
 def distance(
         np.ndarray[DTYPE_t, ndim=1] u,
         np.ndarray[DTYPE_t, ndim=1] v
-        ):
+    ):
     return norm(u-v)
 
 def angle_between(
         np.ndarray[DTYPE_t, ndim=1] u,
         np.ndarray[DTYPE_t, ndim=1] v,
-        ):
+    ):
     cdef double c = dot(u, v)/(norm(u)*norm(v))
     if -1.0 <= c <= 1.0:
         return acos(c)
@@ -107,8 +147,8 @@ def rotate_v(
     return qprod_v(q, vec)
 
 def rotate_M(
-        np.ndarray[DTYPE_t, ndim=1] ax,
         np.ndarray[DTYPE_t, ndim=2] vecs,
+        np.ndarray[DTYPE_t, ndim=1] ax,
         double t,
     ):
     if t == 0:
@@ -116,6 +156,18 @@ def rotate_M(
     elif t == pi:
         return -1.0*vecs
     cdef np.ndarray[DTYPE_t, ndim=1] q = quaternion(ax, t)
+    return qprod_M(q, vecs)
+
+def rotate_v_by_q(
+        np.ndarray[DTYPE_t, ndim=1] vec,
+        np.ndarray[DTYPE_t, ndim=1] q,
+    ):
+    return qprod_v(q, vec)
+
+def rotate_M_by_q(
+        np.ndarray[DTYPE_t, ndim=2] vecs,
+        np.ndarray[DTYPE_t, ndim=1] q,
+    ):
     return qprod_M(q, vecs)
 
 def get_rotation(
@@ -126,6 +178,47 @@ def get_rotation(
     cdef np.ndarray[DTYPE_t, ndim=1] r = unit(cross(u, v))
     cdef np.ndarray[DTYPE_t, ndim=1] q = quaternion(r, t)
     return q
+
+def rotate_x(
+        np.ndarray[DTYPE_t, ndim=2] vecs,
+        double t,
+    ):
+    cdef np.ndarray[DTYPE_t, ndim=1] ax = np.array([1.0, 0.0, 0.0])
+    return rotate_M(vecs, ax, t)
+
+def rotate_y(
+        np.ndarray[DTYPE_t, ndim=2] vecs,
+        double t,
+    ):
+    cdef np.ndarray[DTYPE_t, ndim=1] ax = np.array([0.0, 1.0, 0.0])
+    return rotate_M(vecs, ax, t)
+
+def rotate_z(
+        np.ndarray[DTYPE_t, ndim=2] vecs,
+        double t,
+    ):
+    cdef np.ndarray[DTYPE_t, ndim=1] ax = np.array([0.0, 0.0, 1.0])
+    return rotate_M(vecs, ax, t)
+
+def rotate_around_point(
+        np.ndarray[DTYPE_t, ndim=2] vecs,
+        np.ndarray[DTYPE_t, ndim=1] ax,
+        np.ndarray[DTYPE_t, ndim=1] point,
+        double t,
+    ):
+    cdef np.ndarray[DTYPE_t, ndim=2] vecs_trans = vecs - point
+    vecs_trans = rotate_M(vecs_trans, ax, t)
+    return vecs_trans + point
+
+def rotate_to(
+        np.ndarray[DTYPE_t, ndim=2] vecs,
+        np.ndarray[DTYPE_t, ndim=1] u,
+        np.ndarray[DTYPE_t, ndim=1] v,
+    ):
+    cdef np.ndarray[DTYPE_t, ndim=1] ax = get_rotation(u, v)[:3]
+    cdef double t = angle_between(u, v)
+    return rotate_M(vecs, ax, t)
+
 
 ###############
 # Other stuff #

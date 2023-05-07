@@ -17,7 +17,7 @@ vertices = np.array(
         [0.5, -0.5, -0.5],
         [-0.5, -0.5, -0.5],
     ]
-) + np.array([0, 0, -7])
+) + np.array([0, 0, -4])
 
 cube_triangle_vertices = np.array([
     vertices[0], vertices[1], vertices[2],
@@ -35,24 +35,29 @@ cube_triangle_vertices = np.array([
 ])
 
 cube = Mesh.from_vertices(cube_triangle_vertices)
-
-t1 = np.radians(30)
-q1 = rotation_y(t1)
-cube.rotate(q1)
-t2 = np.radians(30)
-q2 = rotation_x(t2)
-cube.rotate(q2)
-
-camera.project_triangles(cube.faces)
-camera.projected_blur(n=10)
-cv2.imwrite(
-    "pics/cube_as_mesh_projected.png",
-    np.swapaxes(camera.screen.projected, 0, 1),
+cube.color_randomly()
+cube.rotate(
+    axis=X_, point=None, angle=np.pi/6
 )
-camera.apply_mask()
-camera.draw_triangles(cube.faces)
 
-cv2.imwrite(
-    "pics/cube_as_mesh.png",
-    np.swapaxes(camera.screen.pixels, 0, 1),
-)
+""" camera.rotate(Y_, np.pi/24) """
+# TODO: projection after camera rotation needs work!
+
+num_frames = 60
+for frame in tqdm(range(num_frames)):
+    cube.rotate(
+        axis=Y_, point=None, angle=2*np.pi/num_frames
+    )
+
+    camera.project_triangles(cube.faces)
+    camera.projected_blur(n=10)
+    cv2.imwrite(
+        f"frames/cube_as_mesh_projected_{frame:03d}.png",
+        np.swapaxes(camera.screen.projected, 0, 1),
+    )
+    camera.apply_mask()
+    camera.draw_triangles(cube.faces, samples=5)
+    cv2.imwrite(
+        f"frames/cube_as_mesh_{frame:03d}.png",
+        np.swapaxes(camera.screen.pixels, 0, 1),
+    )
