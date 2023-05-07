@@ -27,7 +27,6 @@ HD_720p_16_9 = (1280, 720)
 HD_1080p_16_9 = (1920, 1080)
 
 
-
 def unit(v):
     L = np.linalg.norm(v)
     if L == 0:

@@ -1,10 +1,15 @@
 import numpy as np
 cimport numpy as np
+from libc.math cimport pi, sqrt, sin, cos, acos
 cimport cython
 #cython: boundscheck=False, wraparound=False, nonecheck=False
 
 ctypedef double DTYPE_t
 
+
+#####################
+# Vector operations #
+#####################
 
 def dot(
         np.ndarray[DTYPE_t, ndim=1] u,
@@ -12,7 +17,7 @@ def dot(
         ):
     return u[0]*v[0] + u[1]*v[1] + u[2]*v[2]
 
-def cy_cross(
+def cross(
         np.ndarray[DTYPE_t, ndim=1] u,
         np.ndarray[DTYPE_t, ndim=1] v
         ):
@@ -21,6 +26,110 @@ def cy_cross(
     w[1] = u[2]*v[0] - u[0]*v[2]
     w[2] = u[0]*v[1] - u[1]*v[0]
     return w
+
+def norm2(np.ndarray[DTYPE_t, ndim=1] v):
+    return dot(v, v)
+
+def norm(np.ndarray[DTYPE_t, ndim=1] v):
+    return sqrt(norm2(v))
+
+def unit(np.ndarray[DTYPE_t, ndim=1] v):
+    cdef double L = norm2(v)
+    if L == 0:
+        raise ValueError("Can't normalize zero vectors")
+    return v/sqrt(L)
+
+def distance2(
+        np.ndarray[DTYPE_t, ndim=1] u,
+        np.ndarray[DTYPE_t, ndim=1] v
+        ):
+    return norm2(u-v)
+
+def distance(
+        np.ndarray[DTYPE_t, ndim=1] u,
+        np.ndarray[DTYPE_t, ndim=1] v
+        ):
+    return norm(u-v)
+
+def angle_between(
+        np.ndarray[DTYPE_t, ndim=1] u,
+        np.ndarray[DTYPE_t, ndim=1] v,
+        ):
+    cdef double c = dot(u, v)/(norm(u)*norm(v))
+    if -1.0 <= c <= 1.0:
+        return acos(c)
+    raise ValueError(f"{c} is not a valid argument to acos.")
+
+
+###############
+# Quaternions #
+###############
+
+def quaternion(
+        np.ndarray[DTYPE_t, ndim=1] ax,
+        double t,
+    ):
+    cdef double s = sin(t/2)
+    cdef double c = cos(t/2)
+    cdef np.ndarray[DTYPE_t, ndim=1] q = np.array([s*ax[0], s*ax[1], s*ax[2], c])
+    return q
+
+def qprod_v(
+        np.ndarray[DTYPE_t, ndim=1] q,
+        np.ndarray[DTYPE_t, ndim=1] v,
+    ):
+    cdef np.ndarray[DTYPE_t, ndim=1] t = 2*cross(q[:3], v)
+    return v + q[3]*t + cross(q[:3], t)
+
+def qprod_M(
+        np.ndarray[DTYPE_t, ndim=1] q,
+        np.ndarray[DTYPE_t, ndim=2] M,
+        ):
+    cdef int n = M.shape[0]
+    cdef int m = M.shape[1]
+    cdef np.ndarray[DTYPE_t, ndim=2] u = np.zeros((n, m))
+    cdef np.ndarray[DTYPE_t, ndim=1] t = np.zeros(q.shape[0])
+    for i in range(M.shape[0]):
+        t = 2*cross(q[:3], M[i])
+        u[i] = M[i] + q[3]*t + cross(q[:3], t)
+    return u
+
+def rotate_v(
+        np.ndarray[DTYPE_t, ndim=1] ax,
+        np.ndarray[DTYPE_t, ndim=1] vec,
+        double t,
+    ):
+    if t == 0:
+        return vec
+    elif t == pi:
+        return -1.0*vec
+    cdef np.ndarray[DTYPE_t, ndim=1] q = quaternion(ax, t)
+    return qprod_v(q, vec)
+
+def rotate_M(
+        np.ndarray[DTYPE_t, ndim=1] ax,
+        np.ndarray[DTYPE_t, ndim=2] vecs,
+        double t,
+    ):
+    if t == 0:
+        return vecs
+    elif t == pi:
+        return -1.0*vecs
+    cdef np.ndarray[DTYPE_t, ndim=1] q = quaternion(ax, t)
+    return qprod_M(q, vecs)
+
+def get_rotation(
+        np.ndarray[DTYPE_t, ndim=1] u,
+        np.ndarray[DTYPE_t, ndim=1] v,
+    ):
+    cdef double t = angle_between(u, v)
+    cdef np.ndarray[DTYPE_t, ndim=1] r = unit(cross(u, v))
+    cdef np.ndarray[DTYPE_t, ndim=1] q = quaternion(r, t)
+    return q
+
+###############
+# Other stuff #
+###############
 
 def point_on_plane(
         np.ndarray[DTYPE_t, ndim=1] plane_normal,
@@ -54,9 +163,9 @@ def point_in_triangle(
         np.ndarray[DTYPE_t, ndim=1] p,
         ):
     cdef np.ndarray[DTYPE_t, ndim=2] tran_vertices = vertices - p
-    u = cy_cross(tran_vertices[1], tran_vertices[2])
-    v = cy_cross(tran_vertices[2], tran_vertices[0])
-    w = cy_cross(tran_vertices[0], tran_vertices[1])
+    u = cross(tran_vertices[1], tran_vertices[2])
+    v = cross(tran_vertices[2], tran_vertices[0])
+    w = cross(tran_vertices[0], tran_vertices[1])
     if dot(u, v) < 0.0:
         return False
     if dot(u, w) < 0.0:

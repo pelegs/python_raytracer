@@ -108,7 +108,7 @@ class Plane:
         """
         v1 = points[1] - points[0]
         v2 = points[2] - points[0]
-        normal = unit(cy_cross(v1, v2))
+        normal = unit(cross(v1, v2))
         return cls(normal, points[0])
 
     def get_normal_form(self):
@@ -366,7 +366,7 @@ Allowed range is [0, {self.resolution[1]-1}]."""
         """
         u = self.points_wcs[1] - self.points_wcs[0]
         v = unit(self.points_wcs[3] - self.points_wcs[0])
-        w = cy_cross(u, v)
+        w = cross(u, v)
         self.basis_vecs = np.array([u, v, w])
 
     def rotate(self, q, point=None):
