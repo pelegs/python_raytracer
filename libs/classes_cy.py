@@ -199,7 +199,7 @@ class Triangle:
         """Checks whether a given point p is inside the triangle."""
         return point_in_triangle(self.vertices, p)
 
-    def line_intersect(self, line):
+    def get_line_intersection(self, line):
         """
         Checkes if line intersects the triangle's plane such that the
         intersection point is inside the triangle. If it does, the function
@@ -230,6 +230,9 @@ class Triangle:
         self.create_sides()
         self.create_plane()
 
+    def draw_projection(self, camera, img):
+        pass
+
     def __str__(self):
         return f"""
         Vertices: {self.sides[0]}, {self.sides[1]}, {self.sides[2]}.
@@ -248,7 +251,7 @@ class Sphere:
         self.color = color
 
     def point_inside(self, point):
-        return distance2(point, self.center) <= self.radius_sqr
+        return points_in_sphere(self.center, self.radius_sqr, point)
 
     def point_on(self, point):
         d2 = distance2(point, self.center)
@@ -261,6 +264,28 @@ class Sphere:
         """ if not self.point_on(point): """
         """     raise ValueError(f"Point {point} not on the surface of the sphere") """
         return unit(point - self.center)
+
+    def get_line_intersection(self, line):
+        return line_sphere_intersection(
+            line.start, line.direction, self.center, self.radius_sqr
+        )
+
+    def draw_projection(self, camera, img):
+        line_between_centers = self.center-camera.pos
+        distance = norm(line_between_centers)
+        tan_th = self.r/distance
+        r_vis = norm(camera.d_scr)*tan_th
+        center_projection = line_plane_intersection(
+            camera.pos,
+            unit(line_between_centers),
+            camera.screen.normal_form,
+        )
+        return cv2.circle(
+            img,
+            center_projection.astype(int),
+            int(r_vis)+1,
+            WHITE
+        )
 
 
 class Screen:
@@ -461,7 +486,7 @@ class Camera:
         """
         return unit(self.screen.get_pixel_center_wc(indices)-self.pos)
 
-    def project_triangles(self, triangles):
+    def project_hittable(self, triangles):
         self.screen.projected = np.zeros(
             shape=self.screen.pixels.shape, dtype=np.uint8
         )
@@ -488,7 +513,7 @@ class Camera:
             np.where(gray > 3)
         )
 
-    def draw_triangles(self, triangles, samples=10, mask=True):
+    def draw_hittable(self, hittable_list, samples=10, mask=True):
         """
         This is just a test! Will be deleted later.
         """
@@ -507,17 +532,17 @@ class Camera:
             ]
             pixel_color = np.zeros((samples, 3), dtype=np.uint8)
             for k, ray in enumerate(rays):
-                for triangle in triangles:
-                    t = ray.intersects_triangle(triangle)
+                for hittable in hittable_list:
+                    t = hittable.get_line_intersection(ray)
                     if t is not None and t > 0:
-                        ray.add_hit(t, triangle)
+                        ray.add_hit(t, hittable)
                 if ray.has_hits():
-                    closest_triangle = ray.get_closest_hit()[1]
+                    closest_hittable = ray.get_closest_hit()[1]
                     f = np.dot(
-                        ray.direction, closest_triangle.plane.normal
+                        ray.direction, closest_hittable.plane.normal
                     )
                     pixel_color[k] = (
-                        (closest_triangle.color).astype(np.double) * np.abs(f)
+                        (closest_hittable.color).astype(np.double) * np.abs(f)
                     ).astype(np.uint8)
             self.screen.pixels[i, j] = np.mean(
                 pixel_color, axis=0

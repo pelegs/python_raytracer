@@ -303,19 +303,26 @@ def point_in_triangle(
         return False
     return True
 
+def point_in_sphere(
+        np.ndarray[DTYPE_t, ndim=1] c,
+        double r2,
+        np.ndarray[DTYPE_t, ndim=1] p,
+    ):
+    return distance2(c, r2) < r2
+
 def reflect(
         np.ndarray[DTYPE_t, ndim=1] r,
         np.ndarray[DTYPE_t, ndim=1] n,
-        ):
+    ):
     return r - 2*(dot(r, n))*n
 
 def line_sphere_intersection(
         np.ndarray[DTYPE_t, ndim=1] o,  # Line origin
         np.ndarray[DTYPE_t, ndim=1] u,  # Line direction (assumed normalized)
         np.ndarray[DTYPE_t, ndim=1] c,  # Sphere center
-        double r,  # Sphere radius
+        double r2,  # Sphere radius squared
     ):
-    cdef double D = (dot(u, o-c))**2 - (norm2(o-c)-r**2)
+    cdef double D = (dot(u, o-c))**2 - (norm2(o-c)-r2)
     if D <= 0.0:
         return D
     cdef double sqrtD = sqrt(D)
