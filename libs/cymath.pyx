@@ -1,6 +1,6 @@
 import numpy as np
 cimport numpy as np
-from libc.math cimport pi, sqrt, sin, cos, tan, acos
+from libc.math cimport pi, sqrt, sin, cos, tan, acos, fmin
 cimport cython
 #cython: boundscheck=False, wraparound=False, nonecheck=False
 
@@ -258,9 +258,9 @@ def rand_rotated_normal(
     return unit(normal + dn)
 
 
-###############
-# Other stuff #
-###############
+############
+# Geometry #
+############
 
 def point_on_plane(
         np.ndarray[DTYPE_t, ndim=1] plane_normal,
@@ -308,3 +308,17 @@ def reflect(
         np.ndarray[DTYPE_t, ndim=1] n,
         ):
     return r - 2*(dot(r, n))*n
+
+def line_sphere_intersection(
+        np.ndarray[DTYPE_t, ndim=1] o,  # Line origin
+        np.ndarray[DTYPE_t, ndim=1] u,  # Line direction (assumed normalized)
+        np.ndarray[DTYPE_t, ndim=1] c,  # Sphere center
+        double r,  # Sphere radius
+    ):
+    cdef double D = (dot(u, o-c))**2 - (norm2(o-c)-r**2)
+    if D <= 0.0:
+        return D
+    cdef double sqrtD = sqrt(D)
+    cdef double t1 = -dot(u, o-c) + sqrtD
+    cdef double t2 = -dot(u, o-c) - sqrtD
+    return fmin(t1, t2)
