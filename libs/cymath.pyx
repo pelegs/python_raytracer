@@ -179,6 +179,14 @@ def get_rotation(
     cdef np.ndarray[DTYPE_t, ndim=1] q = quaternion(r, t)
     return q
 
+def get_axis_angle(
+        np.ndarray[DTYPE_t, ndim=1] u,
+        np.ndarray[DTYPE_t, ndim=1] v,
+    ):
+    cdef np.ndarray[DTYPE_t, ndim=1] q = get_rotation(u, v)
+    cdef double t = angle_between(u, v)
+    return q[:3], t
+
 def rotate_x(
         np.ndarray[DTYPE_t, ndim=2] vecs,
         double t,

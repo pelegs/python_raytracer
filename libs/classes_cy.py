@@ -56,13 +56,6 @@ class Line:
         else:
             return -(b + np.sqrt(D))/(2*a)
 
-    def intersects_triangle(self, triangle):
-        t = triangle.line_intersect(self)
-        if t is not None:
-            if triangle.point_inside(self.at_point(t)):
-                return t
-        return None
-
     def __str__(self):
         return f"start: {self.start}, direction: {self.direction}"
 
@@ -248,7 +241,7 @@ class Sphere:
         self.center = center
         self.radius = radius
         self.radius_sqr = radius**2
-        self.color = color
+        self.color = np.array(color, dtype=np.uint8)
 
     def point_inside(self, point):
         return points_in_sphere(self.center, self.radius_sqr, point)
@@ -286,6 +279,9 @@ class Sphere:
             int(r_vis)+1,
             WHITE
         )
+
+    def get_normal_at_point(self, point):
+        return unit(point-self.center)
 
 
 class Screen:
@@ -479,6 +475,10 @@ class Camera:
         self.d_scr = self.d_scr * factor
         self.screen.translate(self.d_scr - d_scr_old)
 
+    def look_at(self, point):
+        axis, angle = get_axis_angle(self.pos, point)
+        self.rotate(axis, angle)
+
     def dir_to_pixel_center(self, indices):
         """
         Get unit vector pointing from camera origin to the center of the
@@ -513,7 +513,7 @@ class Camera:
             np.where(gray > 3)
         )
 
-    def draw_hittable(self, hittable_list, samples=10, mask=True):
+    def draw_hittables(self, hittable_list, samples=10, mask=True):
         """
         This is just a test! Will be deleted later.
         """
@@ -537,9 +537,10 @@ class Camera:
                     if t is not None and t > 0:
                         ray.add_hit(t, hittable)
                 if ray.has_hits():
-                    closest_hittable = ray.get_closest_hit()[1]
+                    t, closest_hittable = ray.get_closest_hit()
+                    p = ray.at_point(t)
                     f = np.dot(
-                        ray.direction, closest_hittable.plane.normal
+                        ray.direction, closest_hittable.get_normal_at_point(p)
                     )
                     pixel_color[k] = (
                         (closest_hittable.color).astype(np.double) * np.abs(f)
