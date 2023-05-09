@@ -1,6 +1,6 @@
 import numpy as np
 cimport numpy as np
-from libc.math cimport pi, sqrt, sin, cos, acos
+from libc.math cimport pi, sqrt, sin, cos, tan, acos
 cimport cython
 #cython: boundscheck=False, wraparound=False, nonecheck=False
 
@@ -218,6 +218,44 @@ def rotate_to(
     cdef np.ndarray[DTYPE_t, ndim=1] ax = get_rotation(u, v)[:3]
     cdef double t = angle_between(u, v)
     return rotate_M(vecs, ax, t)
+
+
+###########################
+# (pseudo) random numbers #
+###########################
+
+def rand_pt_circ(double r):
+    # Returns a random point inside a circle of radius r
+    # (uniform distribution)
+    cdef double rnd_th = 2 * pi * np.random.uniform()
+    cdef double rnd_r  = r * sqrt(np.random.uniform())
+    cdef double x = rnd_r * cos(rnd_th)
+    cdef double y = rnd_r * sin(rnd_th)
+    cdef np.ndarray[DTYPE_t, ndim=1] pt = np.array([x, y])
+    return pt
+
+def rand_pt_circ_3D(
+        double r,
+        np.ndarray[DTYPE_t, ndim=1] normal,
+    ):
+    # Returns a random point inside a circle of radius r
+    # rotated such that its normal points in the direction of given normal
+    # (uniform distribution)
+    cdef np.ndarray[DTYPE_t, ndim=1] pt = np.zeros(3)
+    pt[:2] = rand_pt_circ(r)
+    cdef np.ndarray[DTYPE_t, ndim=1] q = get_rotation(-Z_, normal)
+    pt = rotate_v_by_q(pt, q)
+    return pt
+
+def rand_rotated_normal(
+        np.ndarray[DTYPE_t, ndim=1] normal,
+        double th,
+    ):
+    # Returns the given normal rotated by a random angle in [0, th]
+    # (uniform distribution)
+    cdef double r = tan(th)
+    cdef np.ndarray[DTYPE_t, ndim=1] dn = rand_pt_circ_3D(r, normal)
+    return unit(normal + dn)
 
 
 ###############
