@@ -307,7 +307,7 @@ class Screen:
     def __init__(self, resolution=VGA_480p_4_3):
         # resolution related
         self.aspect_ratio = resolution[0] / resolution[1]
-        self.AR_ = 1.0 / self.aspect_ratio
+        self.AR_inv = 1.0 / self.aspect_ratio
         self.pixels = np.zeros(np.append(resolution, 3), dtype=np.uint8)
         self.pixel_side = 1.0 / self.pixels.shape[0]
         self.resolution = self.pixels.shape
@@ -320,21 +320,21 @@ class Screen:
                 # Corners order: NW, NE, SE, SW
                 [0, 0],
                 [1, 0],
-                [1, self.AR_],
-                [0, self.AR_],
+                [1, self.AR_inv],
+                [0, self.AR_inv],
             ]
         , dtype=np.double)
-        self.center_scs = np.array([0.5, 0.5 * self.AR_], dtype=np.double)
+        self.center_scs = np.array([0.5, 0.5 * self.AR_inv], dtype=np.double)
 
         # World coordinate system (wcs)
         self.points_wcs = np.array(
             [
                 # Corners order: NW, NE, SE, SW
-                [-0.5, +0.5 * self.AR_, -1],
-                [+0.5, +0.5 * self.AR_, -1],
-                [+0.5, -0.5 * self.AR_, -1],
-                [-0.5, -0.5 * self.AR_, -1],
-                [0, 0, -1],
+                [1, 0.5, 0.5*self.AR_inv],
+                [1, -0.5, 0.5*self.AR_inv],
+                [1, -0.5, -0.5*self.AR_inv],
+                [1, 0.5, -0.5*self.AR_inv],
+                [1, 0, 0],
             ]
         , dtype=np.double)
         self.plane = Plane.from_three_points(self.points_wcs[:3])
@@ -396,16 +396,16 @@ Allowed range is [0, {self.resolution[1]-1}]."""
         """
         Calculates the 3 basis vectors of the screen in world coordinates:
         1. The vector from NW corner to NE corner.
-        2. The vector from NW corner to SW corner scaled to length 1.
+        2. The vector from SW corner to NW corner scaled to length 1.
         3. The normal to above vectors.
         Since all three vectors have unit length and are orthonormal to each
         other, the resulting basis set is orthonormal.
+        Note: the set is technically right-handed.
         """
-        # TODO: change basis vecs of world coordinate screen!
-        u = self.points_wcs[1] - self.points_wcs[0]
-        v = unit(self.points_wcs[3] - self.points_wcs[0])
-        w = cross(u, v)
-        self.basis_vecs = np.array([u, v, w])
+        e1 = unit(self.points_wcs[1] - self.points_wcs[0])
+        e2 = unit(self.points_wcs[0] - self.points_wcs[3])
+        n = cross(e1, e2)
+        self.basis_vecs = np.array([e1, e2, n])
 
     def rotate(self, axis, point=None, angle=.0):
         if point is None:
@@ -429,7 +429,7 @@ Allowed range is [0, {self.resolution[1]-1}]."""
         """
         n = sc.shape[0]
         sc_3 = np.c_[sc, np.zeros(n)]
-        return np.dot(sc_3, self.basis_vecs) + self.points_wcs[0]
+        return np.dot(sc_3, self.basis_vecs) # +????
 
     def projections_to_pixels(self, points):
         """
@@ -445,7 +445,7 @@ Allowed range is [0, {self.resolution[1]-1}]."""
         points_transformed = points_transformed[:2]
         w = self.pixels.shape[0]    # No need for h because coords are
                                     # already normalized to aspect ratio
-        return ((points_transformed + np.array([0.5, -0.5*self.AR_])) * np.array([w, -w])).astype(int)
+        return ((points_transformed + np.array([0.5, -0.5*self.AR_inv])) * np.array([w, -w])).astype(int)
 
 
 class Camera:
@@ -578,7 +578,7 @@ class Ray(Line):
         try:
             self.hits.put((t, object), block=False)
         except:
-            print(t, object.id)
+            print("error:", t, object.id)
 
     def has_hits(self):
         return not self.hits.empty()

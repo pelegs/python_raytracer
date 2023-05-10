@@ -23,6 +23,9 @@ CORNERS_FROM_CENTER = np.array([
     [0.5, 0.5],    # SE
     [-0.5, 0.5],   # SW
 ])
+FLIP_X = np.array([-1, 1, 1], dtype=np.double)
+FLIP_Y = np.array([1, -1, 1], dtype=np.double)
+FLIP_Z = np.array([1, 1, -1], dtype=np.double)
 
 # Screen resolutions
 VGA_480p_4_3 = (640, 480)
@@ -133,6 +136,11 @@ def qprod_M(
         t = 2*cross(q[:3], M[i])
         u[i] = M[i] + q[3]*t + cross(q[:3], t)
     return u
+
+
+#############
+# Rotations #
+#############
 
 def rotate_v(
         np.ndarray[DTYPE_t, ndim=1] ax,
@@ -356,7 +364,6 @@ def transform_to_screen(
     cdef np.ndarray[DTYPE_t, ndim=1] q_normal_to_neg_Z = get_rotation(X_, -Z_)
     cdef np.ndarray[DTYPE_t, ndim=1] q_basis_to_X = get_rotation(screen_basis[0], X_)
     cdef np.ndarray[DTYPE_t, ndim=1] q_basis_to_Y = get_rotation(screen_basis[1], Y_)
-    print(q_basis_to_X, q_basis_to_Y)
     # sanity check: basis_to_X and basis_to_Y should be identical
     # cdef np.ndarray[DTYPE_t, ndim=1] new_world_coords = rotate_M(world_coords, normal_to_neg_Z[:3], normal_to_neg_Z[3])
     # TEMP TEMP TEMP!
