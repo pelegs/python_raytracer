@@ -20,6 +20,9 @@ YELLOW = (0, 255, 255)
 COLORS = [
     BLACK, WHITE, GREY, BLUE, GREEN, RED, CYAN, MAGENTA, YELLOW,
 ]
+PROJECTED_COLORS = [
+    WHITE, GREY, BLUE, GREEN, RED, CYAN, MAGENTA, YELLOW,
+]
 
 
 class Line:
@@ -237,11 +240,21 @@ class Triangle:
 class Sphere:
     """TBW"""
 
-    def __init__(self, center=-3*Z_, radius=1.0, color=RED):
+    def __init__(
+            self,
+            center=-3*Z_,
+            radius=1.0,
+            color=RED,
+            projected_color=WHITE,
+        ):
         self.center = center
         self.radius = radius
         self.radius_sqr = radius**2
         self.color = np.array(color, dtype=np.uint8)
+        if projected_color == "random":
+            self.projected_color = random_choice(PROJECTED_COLORS)
+        else:
+            self.projected_color = projected_color
 
     def point_inside(self, point):
         return points_in_sphere(self.center, self.radius_sqr, point)
@@ -263,22 +276,22 @@ class Sphere:
             line.start, line.direction, self.center, self.radius_sqr
         )
 
-    def draw_projection(self, camera, img):
+    def draw_projection(self, camera, img, color=WHITE):
         line_between_centers = self.center-camera.pos
-        distance = norm(line_between_centers)
-        tan_th = self.r/distance
-        r_vis = norm(camera.d_scr)*tan_th
-        center_projection = line_plane_intersection(
-            camera.pos,
-            unit(line_between_centers),
-            camera.screen.normal_form,
-        )
-        return cv2.circle(
-            img,
-            center_projection.astype(int),
-            int(r_vis)+1,
-            WHITE
-        )
+        d = norm(line_between_centers)
+        e0_proj = dot(self.center, camera.screen.basis_vecs[0])*camera.screen.basis_vecs[0]
+        e1_proj = dot(self.center, camera.screen.basis_vecs[1])*camera.screen.basis_vecs[1]
+        projected_center = e0_proj + e1_proj + self.center
+        projected_radius = self.radius/d
+        print(projected_center, projected_radius)
+        return 0
+        """ return cv2.circle( """
+        """     img=img, """
+        """     center=center_projection, """
+        """     radius=r_vis, """
+        """     color=self.projected_color, """
+        """     thickness=-1, """
+        """ ) """
 
     def get_normal_at_point(self, point):
         return unit(point-self.center)
@@ -388,6 +401,7 @@ Allowed range is [0, {self.resolution[1]-1}]."""
         Since all three vectors have unit length and are orthonormal to each
         other, the resulting basis set is orthonormal.
         """
+        # TODO: change basis vecs of world coordinate screen!
         u = self.points_wcs[1] - self.points_wcs[0]
         v = unit(self.points_wcs[3] - self.points_wcs[0])
         w = cross(u, v)
@@ -486,20 +500,23 @@ class Camera:
         """
         return unit(self.screen.get_pixel_center_wc(indices)-self.pos)
 
-    def project_hittable(self, triangles):
+    def project_hittable(self, hittables):
         self.screen.projected = np.zeros(
             shape=self.screen.pixels.shape, dtype=np.uint8
         )
-        for triangle in triangles:
-            indices = np.ones((3, 2), dtype=np.int32)
-            for i, point in enumerate(triangle.vertices):
-                line = Line.from_two_points([self.pos, point])
-                t = self.screen.plane.get_line_intersection(line)
-                p = line.at_point(t)
-                y, x = self.screen.projections_to_pixels(p)
-                indices[i] = np.array([x, y], dtype=np.int32)
-            j = np.random.randint(3, len(COLORS))
-            cv2.fillPoly(self.screen.projected, pts=[indices], color=COLORS[j])
+        for hittable in hittables:
+            self.screen.projected = hittable.draw_projection(
+                self, self.screen.projected
+            )
+            """ indices = np.ones((3, 2), dtype=np.int32) """
+            """ for i, point in enumerate(hittable.vertices): """
+            """     line = Line.from_two_points([self.pos, point]) """
+            """     t = self.screen.plane.get_line_intersection(line) """
+            """     p = line.at_point(t) """
+            """     y, x = self.screen.projections_to_pixels(p) """
+            """     indices[i] = np.array([x, y], dtype=np.int32) """
+            """ j = np.random.randint(3, len(COLORS)) """
+            """ cv2.fillPoly(self.screen.projected, pts=[indices], color=COLORS[j]) """
 
     def projected_blur(self, n=3):
         kernel = np.ones((n, n), dtype=np.float32) / n**2

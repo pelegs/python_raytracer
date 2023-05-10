@@ -175,8 +175,16 @@ def get_rotation(
         np.ndarray[DTYPE_t, ndim=1] v,
     ):
     cdef double t = angle_between(u, v)
-    cdef np.ndarray[DTYPE_t, ndim=1] r = unit(cross(u, v))
-    cdef np.ndarray[DTYPE_t, ndim=1] q = quaternion(r, t)
+    if t == 0:
+        return np.array([0, 0, 0, 0], dtype=np.double)
+    cdef np.ndarray[DTYPE_t, ndim=1] q = np.zeros(4, dtype=np.double)
+    cdef np.ndarray[DTYPE_t, ndim=1] r = np.zeros(3, dtype=np.double)
+    if t == pi:
+        q = np.array([1, 0, 0, 0], dtype=np.double)
+        return q
+    else:
+        r = unit(cross(u, v))
+        q = quaternion(r, t)
     return q
 
 def get_axis_angle(
@@ -337,3 +345,20 @@ def line_sphere_intersection(
     cdef double t1 = -dot(u, o-c) + sqrtD
     cdef double t2 = -dot(u, o-c) - sqrtD
     return fmin(t1, t2)
+
+def transform_to_screen(
+        # np.ndarray[DTYPE_t, ndim=2] world_coords,   # Coordinates to translate
+        # np.ndarray[DTYPE_t, ndim=1] screen_center,  # Center of screen
+        np.ndarray[DTYPE_t, ndim=2] screen_basis,   # Screen's basis vectors
+        np.ndarray[DTYPE_t, ndim=1] screen_normal,  # Screen's normal vector
+        # np.ndarray[long, ndim=1] resolution,         # Screen's resolution in pixels
+    ):
+    cdef np.ndarray[DTYPE_t, ndim=1] q_normal_to_neg_Z = get_rotation(X_, -Z_)
+    cdef np.ndarray[DTYPE_t, ndim=1] q_basis_to_X = get_rotation(screen_basis[0], X_)
+    cdef np.ndarray[DTYPE_t, ndim=1] q_basis_to_Y = get_rotation(screen_basis[1], Y_)
+    print(q_basis_to_X, q_basis_to_Y)
+    # sanity check: basis_to_X and basis_to_Y should be identical
+    # cdef np.ndarray[DTYPE_t, ndim=1] new_world_coords = rotate_M(world_coords, normal_to_neg_Z[:3], normal_to_neg_Z[3])
+    # TEMP TEMP TEMP!
+    # return new_world_coords
+    return 0
