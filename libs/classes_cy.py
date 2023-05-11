@@ -226,8 +226,21 @@ class Triangle:
         self.create_sides()
         self.create_plane()
 
+    def get_normal_at_point(self, p):
+        return self.plane.normal
+
     def draw_projection(self, camera, img):
         pass
+
+    def ray_hits(self, ray):
+        t = line_plane_intersection(
+            ray.start, ray.direction, self.plane.normal_form
+        )
+        if t > 0:
+            p = ray.at_point(t)
+            if point_in_triangle(self.vertices, p):
+                return t
+        return False
 
     def __str__(self):
         return f"""
@@ -271,6 +284,9 @@ class Sphere:
         """     raise ValueError(f"Point {point} not on the surface of the sphere") """
         return unit(point - self.center)
 
+    def ray_hits(self, ray):
+        return self.get_line_intersection(ray)
+
     def get_line_intersection(self, line):
         return line_sphere_intersection(
             line.start, line.direction, self.center, self.radius_sqr
@@ -278,20 +294,16 @@ class Sphere:
 
     def draw_projection(self, camera, img, color=WHITE):
         line_between_centers = self.center-camera.pos
-        d = norm(line_between_centers)
-        e0_proj = dot(self.center, camera.screen.basis_vecs[0])*camera.screen.basis_vecs[0]
-        e1_proj = dot(self.center, camera.screen.basis_vecs[1])*camera.screen.basis_vecs[1]
-        projected_center = e0_proj + e1_proj + self.center
-        projected_radius = self.radius/d
-        print(projected_center, projected_radius)
-        return 0
-        """ return cv2.circle( """
-        """     img=img, """
-        """     center=center_projection, """
-        """     radius=r_vis, """
-        """     color=self.projected_color, """
-        """     thickness=-1, """
-        """ ) """
+        L = unit(line_between_centers)
+        l = norm(line_between_centers)
+        f = self.r/l
+        t = line_plane_intersection(self.pos, L, self.screen.normal_form)
+        p = self.pos + t*l
+        d = distance(self.pos, p)
+        R = f * d  # visible radius on plane
+        # TODO: conversion of p from wc to sc and then to pixels
+        return None
+
 
     def get_normal_at_point(self, point):
         return unit(point-self.center)
@@ -540,10 +552,10 @@ class Camera:
         w, h = self.screen.resolution[:2]
         self.screen.pixels = np.zeros((w, h, 3), dtype=np.uint8)
         if mask:
-            progress = tqdm(self.screen.non_zero_pixels, leave=False)
+            process = self.screen.non_zero_pixels
         else:
-            progress = tqdm([(i, j) for i in range(w) for j in range(h)])
-        for i, j in progress:
+            process = [(i, j) for i in range(w) for j in range(h)]
+        for i, j in tqdm(process, leave=False):
             rays = [
                 Ray(self.pos, screen_point)
                 for screen_point in self.screen.rand_pts_in_pixel_wc(
@@ -553,7 +565,7 @@ class Camera:
             pixel_color = np.zeros((samples, 3), dtype=np.uint8)
             for k, ray in enumerate(rays):
                 for hittable in hittable_list:
-                    t = hittable.get_line_intersection(ray)
+                    t = hittable.ray_hits(ray)
                     if t is not None and t > 0:
                         ray.add_hit(t, hittable)
                 if ray.has_hits():
