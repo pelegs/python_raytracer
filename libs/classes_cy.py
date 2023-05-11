@@ -308,6 +308,7 @@ class Screen:
         # resolution related
         self.aspect_ratio = resolution[0] / resolution[1]
         self.AR_inv = 1.0 / self.aspect_ratio
+        self.AR_half_inv = 0.5 * self.AR_inv
         self.pixels = np.zeros(np.append(resolution, 3), dtype=np.uint8)
         self.pixel_side = 1.0 / self.pixels.shape[0]
         self.resolution = self.pixels.shape
@@ -325,16 +326,17 @@ class Screen:
             ]
         , dtype=np.double)
         self.center_scs = np.array([0.5, 0.5 * self.AR_inv], dtype=np.double)
+        self.centering_sc = np.array([-0.5, self.AR_half_inv, 0])
 
         # World coordinate system (wcs)
         self.points_wcs = np.array(
             [
                 # Corners order: NW, NE, SE, SW
-                [1, 0.5, 0.5*self.AR_inv],
-                [1, -0.5, 0.5*self.AR_inv],
-                [1, -0.5, -0.5*self.AR_inv],
-                [1, 0.5, -0.5*self.AR_inv],
-                [1, 0, 0],
+                [-0.5, 1, self.AR_half_inv],
+                [0.5, 1, self.AR_half_inv],
+                [0.5, 1, -self.AR_half_inv],
+                [-0.5, 1, -self.AR_half_inv],
+                [0, 1, 0],
             ]
         , dtype=np.double)
         self.plane = Plane.from_three_points(self.points_wcs[:3])
@@ -428,8 +430,8 @@ Allowed range is [0, {self.resolution[1]-1}]."""
         NOTE: maybe add limitation on values s.t. sc is indeed inside screen?
         """
         n = sc.shape[0]
-        sc_3 = np.c_[sc, np.zeros(n)]
-        return np.dot(sc_3, self.basis_vecs) # +????
+        sc_3 = np.c_[sc, np.zeros(n)] * FLIP_Y + self.centering_sc
+        return np.dot(sc_3, self.basis_vecs) + self.points_wcs[4]
 
     def projections_to_pixels(self, points):
         """
@@ -490,7 +492,8 @@ class Camera:
         self.screen.translate(self.d_scr - d_scr_old)
 
     def look_at(self, point):
-        axis, angle = get_axis_angle(self.pos, point)
+        direction = point-self.pos
+        axis, angle = get_axis_angle(self.screen.basis_vecs[2], direction)
         self.rotate(axis, angle)
 
     def dir_to_pixel_center(self, indices):
@@ -565,6 +568,12 @@ class Camera:
             self.screen.pixels[i, j] = np.mean(
                 pixel_color, axis=0
             ).astype(np.uint8)
+
+    def save_frame(self, filename):
+        cv2.imwrite(
+            filename,
+            np.swapaxes(self.screen.pixels, 0, 1),
+        )
 
 
 class Ray(Line):
