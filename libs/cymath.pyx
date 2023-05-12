@@ -23,9 +23,12 @@ CORNERS_FROM_CENTER = np.array([
     [0.5, 0.5],    # SE
     [-0.5, 0.5],   # SW
 ])
-FLIP_X = np.array([-1, 1, 1], dtype=np.double)
-FLIP_Y = np.array([1, -1, 1], dtype=np.double)
-FLIP_Z = np.array([1, 1, -1], dtype=np.double)
+# FLIP_X = np.array([[-1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.double)
+# FLIP_Y = np.array([[1, 0, 0], [0, -1, 0], [0, 0, 1]], dtype=np.double)
+# FLIP_Z = np.array([[1, 0, 0], [0, 1, 0], [0, 0, -1]], dtype=np.double)
+FLIP_X = np.array([-1, 1, 1])
+FLIP_Y = np.array([1, -1, 1])
+FLIP_Z = np.array([1, 1, -1])
 
 # Screen resolutions
 VGA_480p_4_3 = (640, 480)

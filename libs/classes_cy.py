@@ -403,7 +403,8 @@ Allowed range is [0, {self.resolution[1]-1}]."""
         )
 
     def rand_pts_in_pixel_wc(self, indices, n=10):
-        return self.sc_to_wc(self.rand_pts_in_pixel_sc(indices, n))
+        rand_points = self.rand_pts_in_pixel_sc(indices, n)
+        return self.sc_to_wc(rand_points)
     # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ #
 
     def calc_screen_basis_vecs(self):
@@ -420,6 +421,7 @@ Allowed range is [0, {self.resolution[1]-1}]."""
         e2 = unit(self.points_wcs[0] - self.points_wcs[3])
         n = cross(e1, e2)
         self.basis_vecs = np.array([e1, e2, n])
+        self.basis_vecs_inv = np.linalg.inv(self.basis_vecs)
 
     def rotate(self, axis, point=None, angle=.0):
         if point is None:
@@ -444,6 +446,13 @@ Allowed range is [0, {self.resolution[1]-1}]."""
         n = sc.shape[0]
         sc_3 = np.c_[sc, np.zeros(n)] * FLIP_Y + self.centering_sc
         return np.dot(sc_3, self.basis_vecs) + self.points_wcs[4]
+
+    def wc_to_sc(self, wc):
+        sc = wc - self.points_wcs[4]
+        sc = np.dot(sc, self.basis_vecs_inv)
+        sc -= self.centering_sc
+        sc = sc * FLIP_Y
+        return sc[:,:2]
 
     def projections_to_pixels(self, points):
         """
@@ -649,3 +658,4 @@ class Mesh:
 
 if __name__ == "__main__":
     pass
+
