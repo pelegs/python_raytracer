@@ -30,6 +30,10 @@ FLIP_X = np.array([-1, 1, 1])
 FLIP_Y = np.array([1, -1, 1])
 FLIP_Z = np.array([1, 1, -1])
 
+geometric_weights = lambda n: np.array([2**(-k-1) for k in range(n)])
+normed_geo_weights = lambda n: geometric_weights(n)/np.sum(geometric_weights(n))
+
+
 # Screen resolutions
 VGA_480p_4_3 = (640, 480)
 VGA_480p_3_2 = (720, 480)

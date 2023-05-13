@@ -130,9 +130,12 @@ class Plane:
         d = -(a * px + b * py + c * pz)
         self.normal_form = np.array([a, b, c, d])
 
-    def reflect(self, direction):
+    def reflect(self, point, direction):
         """Returns the direction of a line reflected from the plane."""
-        return direction - 2 * (np.dot(direction, self.normal)) * self.normal
+        normal = self.normal
+        dn = rand_rotated_normal(normal, np.pi/6)
+        normal = unit(normal + dn)
+        return direction - 2 * (np.dot(direction, normal)) * normal
 
     def get_line_intersection(self, line):
         """
@@ -223,12 +226,12 @@ class Triangle:
                 return t
         return None
 
-    def reflect(self, direction):
+    def reflect(self, point, direction):
         """
         Returns the direction of a reflected line, assuming it intersects
         the triangle.
         """
-        return self.plane.reflect(direction)
+        return self.plane.reflect(point, direction)
 
     def rotate(self, axis, point=None, angle=0.0):
         if point is None:
@@ -329,6 +332,12 @@ class Sphere:
 
     def get_normal_at_point(self, point):
         return unit(point - self.center)
+
+    def reflect(self, point, direction):
+        normal = self.get_normal_at_point(point)
+        dn = rand_rotated_normal(normal, np.pi/6)
+        normal = unit(normal + dn)
+        return direction - 2 * (np.dot(direction, normal)) * normal
 
 
 class Screen:
@@ -560,26 +569,31 @@ class Camera:
             process = [(i, j) for i in range(w) for j in range(h)]
         for i, j in tqdm(process, leave=False):
             rays = [
-                Ray(self.pos, screen_point)
+                Ray(self.pos, screen_point, max_bounces=3)
                 for screen_point in self.screen.rand_pts_in_pixel_wc(
                     indices=(i, j),
                     n=samples,
                 )
             ]
-            pixel_color = np.zeros((samples, 3), dtype=np.uint8)
+            pixel_color = np.zeros((samples, 3))
             for k, ray in enumerate(rays):
-                for hittable in hittable_list:
-                    t = hittable.ray_hits(ray)
-                    if t is not None and t > 0:
-                        ray.add_hit(t, hittable)
-                if ray.has_hits():
-                    t, closest_hittable = ray.get_closest_hit()
-                    p = ray.at_point(t)
-                    f = np.dot(ray.direction, closest_hittable.get_normal_at_point(p))
-                    pixel_color[k] = (
-                        (closest_hittable.color).astype(np.double) * np.abs(f)
-                    ).astype(np.uint8)
-            self.screen.pixels[i, j] = np.mean(pixel_color, axis=0).astype(np.uint8)
+                ray.reset_color()
+                while ray.num_bounces <= ray.max_bounces:
+                    ray.reset_hits()
+                    for hittable in hittable_list:
+                        t = hittable.ray_hits(ray)
+                        if t is not None and t > 0:
+                            ray.add_hit(t, hittable)
+                    if ray.has_hits():
+                        t, closest_hittable = ray.get_closest_hit()
+                        p = ray.at_point(t)
+                        ray.start = p
+                        ray.direction = closest_hittable.reflect(p, ray.direction)
+                    else:
+                        ray.num_bounces = ray.max_bounces+1
+                    """ f = np.dot(ray.direction, closest_hittable.get_normal_at_point(p)) """
+                pixel_color[k] = ray.calc_avg_color()
+            self.screen.pixels[i, j] = np.mean(pixel_color, axis=0).astype(np.int32)
 
     def save_frame(self, filename):
         cv2.imwrite(
@@ -597,23 +611,42 @@ class Camera:
 class Ray(Line):
     """docstring for Ray."""
 
-    def __init__(self, start, direction):
+    def __init__(self, start, direction, max_bounces=3):
         super(Ray, self).__init__(start, direction)
         self.hits = pq()
-        self.color = BLACK
+        self.color = np.zeros(3)
+        self.max_bounces = max_bounces
+        self.num_bounces = 0
 
     def add_hit(self, t, object):
         try:
             self.hits.put((t, object), block=False)
+            self.color = np.vstack((self.color, object.color))
         except:
             print("error:", t, object.id)
 
     def has_hits(self):
         return not self.hits.empty()
 
+    def reset_hits(self):
+        with self.hits.mutex:
+            self.hits.queue.clear()
+
+    def reset_color(self):
+        self.color = np.zeros(3)
+
+    def calc_avg_color(self):
+        n = self.color.shape[0]
+        ws = normed_geo_weights(n)
+        self.color = np.average(self.color, axis=0, weights=ws)
+        return self.color
+
     def get_closest_hit(self):
         if self.has_hits():
             return self.hits.get(block=False)
+
+    def add_bounce(self):
+        self.num_bounces += 1
 
 
 class Mesh:
