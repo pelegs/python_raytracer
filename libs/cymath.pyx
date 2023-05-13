@@ -357,18 +357,40 @@ def line_sphere_intersection(
     cdef double t2 = -dot(u, o-c) - sqrtD
     return fmin(t1, t2)
 
-def transform_to_screen(
-        # np.ndarray[DTYPE_t, ndim=2] world_coords,   # Coordinates to translate
-        # np.ndarray[DTYPE_t, ndim=1] screen_center,  # Center of screen
-        np.ndarray[DTYPE_t, ndim=2] screen_basis,   # Screen's basis vectors
-        np.ndarray[DTYPE_t, ndim=1] screen_normal,  # Screen's normal vector
-        # np.ndarray[long, ndim=1] resolution,         # Screen's resolution in pixels
+
+################
+# Screen stuff #
+################
+
+def sphere_projection(
+        np.ndarray[DTYPE_t, ndim=1] camera_pos,
+        np.ndarray[DTYPE_t, ndim=1] plane_normal_form,
+        np.ndarray[DTYPE_t, ndim=1] sphere_center,
+        double radius,
+        int screen_width,
     ):
-    cdef np.ndarray[DTYPE_t, ndim=1] q_normal_to_neg_Z = get_rotation(X_, -Z_)
-    cdef np.ndarray[DTYPE_t, ndim=1] q_basis_to_X = get_rotation(screen_basis[0], X_)
-    cdef np.ndarray[DTYPE_t, ndim=1] q_basis_to_Y = get_rotation(screen_basis[1], Y_)
-    # sanity check: basis_to_X and basis_to_Y should be identical
-    # cdef np.ndarray[DTYPE_t, ndim=1] new_world_coords = rotate_M(world_coords, normal_to_neg_Z[:3], normal_to_neg_Z[3])
-    # TEMP TEMP TEMP!
-    # return new_world_coords
-    return 0
+    cdef np.ndarray[DTYPE_t, ndim=1] line_between_centers = sphere_center - camera_pos
+    cdef np.ndarray[DTYPE_t, ndim=1] L = unit(line_between_centers)
+    cdef double l = norm(line_between_centers)
+    cdef double t = line_plane_intersection(
+        camera_pos, L, plane_normal_form
+    )
+    cdef np.ndarray[DTYPE_t, ndim=1] p = camera_pos + t*L
+    cdef double d = distance(camera_pos, p)
+    cdef int r_vis = int(radius/l*d*screen_width)
+    return p, r_vis
+
+def triangle_projection(
+        np.ndarray[DTYPE_t, ndim=1] camera_pos,
+        np.ndarray[DTYPE_t, ndim=1] plane_normal_form,
+        np.ndarray[DTYPE_t, ndim=2] vertices,
+    ):
+    cdef np.ndarray[int, ndim=2] vertices_pixels = np.zeros((3, 2), dtype=np.int32)
+    cdef np.ndarray[DTYPE_t, ndim=1] L = np.zeros(3, dtype=np.double)
+    cdef double t = .0
+    cdef np.ndarray[DTYPE_t, ndim=2] p_wc = np.zeros((3, 3), dtype=np.double)
+    for i in [0, 1, 2]:
+        L = unit(vertices[i]-camera_pos)
+        t = line_plane_intersection(camera_pos, L, plane_normal_form)
+        p_wc[i] = camera_pos + t*L
+    return p_wc

@@ -203,8 +203,8 @@ class Triangle:
         self.plane = Plane.from_three_points(self.vertices)
 
     def set_colors(self, color, projected_color):
-        self.color = np.array(color, dtype=np.uint8)
-        self.projected_color = np.array(projected_color, dtype=np.uint8)
+        self.color = np.array(color, dtype=np.int16)
+        self.projected_color = projected_color
 
     def point_inside(self, p):
         """Checks whether a given point p is inside the triangle."""
@@ -243,25 +243,17 @@ class Triangle:
         return self.plane.normal
 
     def draw_projection(self, camera, img):
-        """cv2.fillPoly(self.screen.projected, pts=[indices], color=COLORS[j])"""
-        vertices_pixels = []
-        for i, point in enumerate(self.vertices):
-            l = unit(point - camera.pos)
-            t = line_plane_intersection(
-                camera.pos,
-                l,
-                camera.screen.plane.normal_form,
-            )
-            p_wc = camera.pos + t * l
-            p_sc = camera.screen.wc_to_sc([p_wc])
-            vertices_pixels.append(camera.screen.sc_to_pixels(p_sc)[0])
-        vertices_pixels = np.array(vertices_pixels, dtype=np.int32)
+        p_wc = triangle_projection(
+            camera.pos, camera.screen.plane.normal_form,
+            self.vertices
+        )
+        p_sc = camera.screen.wc_to_sc(p_wc)
+        vertices_pixels = camera.screen.sc_to_pixels(p_sc).astype(np.int32)
         vertices_pixels[:, [0, 1]] = vertices_pixels[:, [1, 0]]
-        """ my_array[:, [2, 0]] = my_array[:, [0, 2]] """
         return cv2.fillConvexPoly(
             img=camera.screen.projected,
             points=vertices_pixels,
-            color=(0,255,0),
+            color=self.projected_color,
         )
 
     def ray_hits(self, ray):
@@ -288,7 +280,7 @@ class Sphere:
         center=-3 * Z_,
         radius=1.0,
         color=RED,
-        projected_color=WHITE,
+        projected_color=RED,
     ):
         self.center = center
         self.radius = radius
@@ -310,8 +302,6 @@ class Sphere:
         """
         Return the normal vector to the sphere at a given point on its surface.
         """
-        """ if not self.point_on(point): """
-        """     raise ValueError(f"Point {point} not on the surface of the sphere") """
         return unit(point - self.center)
 
     def ray_hits(self, ray):
@@ -323,19 +313,16 @@ class Sphere:
         )
 
     def draw_projection(self, camera, img, color=WHITE):
-        line_between_centers = self.center - camera.pos
-        L = unit(line_between_centers)
-        l = norm(line_between_centers)
-        t = line_plane_intersection(camera.pos, L, camera.screen.plane.normal_form)
-        p = camera.pos + t * L
-        d = distance(camera.pos, p)
-        R = int(self.radius / l * d * camera.screen.width)
+        p, r_vis = sphere_projection(
+            camera.pos, camera.screen.plane.normal_form, self.center,
+            self.radius, camera.screen.width
+        )
         p_sc = camera.screen.wc_to_sc(p.reshape(1, 3))
         p_pixel = camera.screen.sc_to_pixels(p_sc)[0][::-1]
         return cv2.circle(
             img=camera.screen.projected,
             center=p_pixel,
-            radius=R,
+            radius=r_vis,
             color=self.projected_color,
             thickness=-1,
         )
@@ -493,25 +480,6 @@ Allowed range is [0, {self.resolution[1]-1}]."""
 
     def sc_to_pixels(self, sc):
         return (sc * self.width).astype(np.int16)
-
-    def projections_to_pixels(self, points):
-        """
-        TBW
-        """
-        points_transformed = points
-        if not same_direction(self.plane.normal, -Z_, PRECISION):
-            q1 = get_rotation(self.plane.normal, -Z_)
-            points_transformed = rotate_v_by_q(points_transformed, q1)
-        if not same_direction(self.basis_vecs[0], X_, PRECISION):
-            q2 = get_rotation(self.basis_vecs[0], X_)
-            points_transformed = rotate_v_by_q(points_transformed, q2)
-        points_transformed = points_transformed[:2]
-        w = self.pixels.shape[0]  # No need for h because coords are
-        # already normalized to aspect ratio
-        return (
-            (points_transformed + np.array([0.5, -0.5 * self.AR_inv]))
-            * np.array([w, -w])
-        ).astype(int)
 
 
 class Camera:

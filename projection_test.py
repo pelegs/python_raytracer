@@ -4,7 +4,7 @@ from libs.classes_cy import *
 
 screen = Screen(resolution=(640, 480))
 camera = Camera(screen=screen)
-sphere = Sphere(center=17*Y_, radius=1.5)
+sphere = Sphere(center=10*Y_, radius=1.5)
 triangle = Triangle(
     np.array([
         [-1, 8, -1],
