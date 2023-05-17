@@ -44,6 +44,19 @@ HD_720p_16_9 = (1280, 720)
 HD_1080p_16_9 = (1920, 1080)
 
 
+###################
+# Math operations #
+###################
+
+def sign(double x):
+    if x>.0:
+        return 1.0
+    elif x<.0:
+        return -1.0
+    else:
+        return .0
+
+
 #####################
 # Vector operations #
 #####################
@@ -52,7 +65,18 @@ def dot(
         np.ndarray[DTYPE_t, ndim=1] u,
         np.ndarray[DTYPE_t, ndim=1] v
         ):
-    return u[0]*v[0] + u[1]*v[1] + u[2]*v[2]
+    cdef int u_dim = len(u)
+    cdef int v_dim = len(v)
+    if u_dim != v_dim:
+        # Raise ValueError?
+        return None
+    if u_dim == 2:
+        return u[0]*v[0] + u[1]*v[1]
+    elif u_dim == 3:
+        return u[0]*v[0] + u[1]*v[1] + u[2]*v[2]
+    else:
+        # Raise ValueError?
+        return None
 
 def cross(
         np.ndarray[DTYPE_t, ndim=1] u,
@@ -251,14 +275,68 @@ def rotate_to(
     return rotate_M(vecs, ax, t)
 
 
-###########################
-# (pseudo) random numbers #
-###########################
+################
+# Screen stuff #
+################
+
+def cartesian_to_spherical(
+        np.ndarray[DTYPE_t, ndim=1] vec,
+    ):
+    cdef double r = norm(vec)
+    if r == .0:
+        # raise ValueError?
+        return None
+    cdef double x = vec[0]
+    cdef double y = vec[1]
+    cdef double z = vec[2]
+    cdef double rxy = norm(vec[:2])
+    cdef np.ndarray[DTYPE_t, ndim=1] vec_spherical = np.array(
+        [r, acos(z/r), sign(y)*acos(x/rxy)]
+    )
+    return vec_spherical
+
+def spherical_to_cartesian(
+        np.ndarray[DTYPE_t, ndim=1] vec,
+    ):
+    cdef double r = vec[0]
+    cdef double th = vec[1]
+    cdef double ph = vec[2]
+    cdef double sin_th = sin(th)
+    cdef double cos_th = cos(th)
+    cdef double sin_ph = sin(ph)
+    cdef double cos_ph = cos(ph)
+    cdef np.ndarray[DTYPE_t, ndim=1] vec_cartesian = r*np.array(
+        [sin_th*cos_ph, sin_th*sin_ph, cos_th]
+    )
+    return vec_cartesian
+
+#########################
+# (pseudo) random stuff #
+#########################
+
+def rand_pt_sphere_surface(int N=10):
+    cdef np.ndarray[DTYPE_t, ndim=2] cube = np.random.uniform(-1, 1, size=(N,3))
+    for i in range(N):
+        cube[i] = unit(cube[i])
+    return cube
+
+def rand_pt_solid_angle(double th=pi/4):
+    cdef np.ndarray[DTYPE_t, ndim=1] rand_vec = unit(np.random.uniform(-1, 1, size=3))
+    cdef np.ndarray[DTYPE_t, ndim=1] vec_sphr = np.zeros(3, dtype=np.double)
+    cdef int found = 0
+    while not found:
+        vec_sphr = cartesian_to_spherical(rand_vec)
+        if -th <= vec_sphr[1] <= th:
+            found = 1
+            return rand_vec
+        else:
+            rand_vec = unit(np.random.uniform(-1, 1, size=3))
+    return None
 
 def rand_pt_circ(double r):
     # Returns a random point inside a circle of radius r
     # (uniform distribution)
-    cdef double rnd_th = 2 * pi * np.random.uniform()
+    cdef double rnd_th = 2 * pi * np.random.normal()
     cdef double rnd_r  = r * sqrt(np.random.uniform())
     cdef double x = rnd_r * cos(rnd_th)
     cdef double y = rnd_r * sin(rnd_th)
@@ -278,15 +356,16 @@ def rand_pt_circ_3D(
     pt = rotate_v_by_q(pt, q)
     return pt
 
-def rand_rotated_normal(
-        np.ndarray[DTYPE_t, ndim=1] normal,
+def rand_rotated_vector(
+        np.ndarray[DTYPE_t, ndim=1] vec,
         double th,
     ):
-    # Returns the given normal rotated by a random angle in [0, th]
+    # Returns the given vector rotated by a random angle in [0, th]
     # (uniform distribution)
+    # NOTE: assumes the vector is normalized!
     cdef double r = tan(th)
-    cdef np.ndarray[DTYPE_t, ndim=1] dn = rand_pt_circ_3D(r, normal)
-    return unit(normal + dn)
+    cdef np.ndarray[DTYPE_t, ndim=1] dn = rand_pt_circ_3D(r, vec)
+    return unit(vec + dn)
 
 
 ############

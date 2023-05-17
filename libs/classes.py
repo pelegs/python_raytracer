@@ -242,7 +242,7 @@ class Triangle:
         self.create_sides()
         self.create_plane()
 
-    def get_normal_at_point(self, p):
+    def get_normal_at_point(self, p, theta=0.0):
         return self.plane.normal
 
     def draw_projection(self, camera, img):
@@ -665,8 +665,10 @@ class Ray(Line):
             t, closest_hittable = self.get_closest_hit()
             if closest_hittable is not None:
                 hit_point = self.at_point(t)
-                normal = hittable.get_normal_at_point(p)
+                normal = hittable.get_normal_at_point(p, theta=0.05)
                 self.bounce(hit_point, normal)
+            else:
+                self.active = False
 
 
 class Mesh:
