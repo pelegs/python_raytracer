@@ -9,10 +9,12 @@ fig = plt.figure()
 ax = fig.add_subplot(projection='3d')
 
 n = 1000
-""" points = rand_pt_sphere_surface(n) """
+dir = unit(np.random.uniform(-1, 1, size=3))
 points = np.zeros((n, 3), dtype=np.double)
 for i, vec in enumerate(points):
-    points[i] = rand_pt_solid_angle(th=np.pi/2)
+    points[i] = rand_pt_solid_angle_rotated(
+        dir, th=np.pi/5
+    )
 
 xs = points[:,0]
 ys = points[:,1]
@@ -22,8 +24,9 @@ ax.scatter(xs, ys, zs)
 ax.axes.set_xlim3d([-2, 2])
 ax.axes.set_ylim3d([-2, 2])
 ax.axes.set_zlim3d([-2, 2])
-""" u, v, w = base_vec """
-""" ax.quiver(0., 0., 0., u, v, w) """
+ax.set_aspect('equal')
+u, v, w = dir
+ax.quiver(0., 0., 0., u, v, w)
 
 ax.set_xlabel('x')
 ax.set_ylabel('y')

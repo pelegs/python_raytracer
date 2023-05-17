@@ -333,6 +333,14 @@ def rand_pt_solid_angle(double th=pi/4):
             rand_vec = unit(np.random.uniform(-1, 1, size=3))
     return None
 
+def rand_pt_solid_angle_rotated(
+        np.ndarray[DTYPE_t, ndim=1] dir,
+        double th=pi/4,
+    ):
+    cdef np.ndarray[DTYPE_t, ndim=1] rand_vec = rand_pt_solid_angle(th)
+    cdef np.ndarray[DTYPE_t, ndim=1] q = get_rotation(Z_, dir)
+    return rotate_v_by_q(rand_vec, q)
+
 def rand_pt_circ(double r):
     # Returns a random point inside a circle of radius r
     # (uniform distribution)
