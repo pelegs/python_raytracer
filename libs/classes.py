@@ -1,18 +1,44 @@
 import numpy as np
-from .mathlib import *
+
+""" from .mathlib import * """
 from queue import PriorityQueue as pq
 from tqdm import tqdm
+import cv2
+from random import choice as random_choice
+from libs.cymath import *
 
 
 # Colors
-BLACK = np.array([0, 0, 0])
-WHITE = np.array([255, 255, 255])
-BLUE = np.array([255, 0, 0])
-GREEN = np.array([0, 255, 0])
-RED = np.array([0, 0, 255])
-""" CYAN = np.array([0, 255, 255]) """
-""" MAGENTA = np.array([255, 0, 255]) """
-""" YELLOW = np.array([255, 255, 0]) """
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREY = (100, 100, 100)
+BLUE = (255, 0, 0)
+GREEN = (0, 255, 0)
+RED = (0, 0, 255)
+CYAN = (255, 255, 0)
+MAGENTA = (255, 0, 255)
+YELLOW = (0, 255, 255)
+COLORS = [
+    BLACK,
+    WHITE,
+    GREY,
+    BLUE,
+    GREEN,
+    RED,
+    CYAN,
+    MAGENTA,
+    YELLOW,
+]
+PROJECTED_COLORS = [
+    WHITE,
+    GREY,
+    BLUE,
+    GREEN,
+    RED,
+    CYAN,
+    MAGENTA,
+    YELLOW,
+]
 
 
 class Line:
@@ -36,25 +62,18 @@ class Line:
         L(t) = start + direction*t. This function returns a point on the
         line given the parameter t.
         """
-        return self.start + t * self.direction
+        return line_at_point(self.start, self.direction, t)
 
     def intersects_sphere(self, sphere):
         oc = self.start - sphere.center
         a = norm2(self.direction)
         b = 2 * np.dot(oc, self.direction)
         c = norm2(oc) - sphere.radius_sqr
-        D = b**2 - 4*a*c
+        D = b**2 - 4 * a * c
         if D < 0:
             return -1
         else:
-            return -(b + np.sqrt(D))/(2*a)
-
-    def intersects_triangle(self, triangle):
-        t = triangle.line_intersect(self)
-        if t is not None:
-            if triangle.point_inside(self.at_point(t)):
-                return t
-        return None
+            return -(b + np.sqrt(D)) / (2 * a)
 
     def __str__(self):
         return f"start: {self.start}, direction: {self.direction}"
@@ -102,7 +121,7 @@ class Plane:
         """
         v1 = points[1] - points[0]
         v2 = points[2] - points[0]
-        normal = unit(py_cross(v1, v2))
+        normal = unit(cross(v1, v2))
         return cls(normal, points[0])
 
     def get_normal_form(self):
@@ -111,28 +130,22 @@ class Plane:
         d = -(a * px + b * py + c * pz)
         self.normal_form = np.array([a, b, c, d])
 
-    def reflect(self, direction):
+    def reflect(self, point, direction):
         """Returns the direction of a line reflected from the plane."""
-        return direction - 2 * (np.dot(direction, self.normal)) * self.normal
+        normal = self.normal
+        dn = rand_rotated_normal(normal, np.pi/6)
+        normal = unit(normal + dn)
+        return direction - 2 * (np.dot(direction, normal)) * normal
 
     def get_line_intersection(self, line):
         """
         Returns the point where line intersects the plane. If such point
         doesn't exist it return False.
         """
-        if np.dot(self.normal, line.direction) == 0:
-            return None
-        a, b, c, d = self.normal_form
-        sx, sy, sz = line.start
-        vx, vy, vz = line.direction
-        t = -(a * sx + b * sy + c * sz + d) / (a * vx + b * vy + c * vz)
-        """ return line.at_point(t) """
-        return t
+        return line_plane_intersection(line.start, line.direction, self.normal_form)
 
-    def point_on_plane(self, p):
-        return np.isclose(
-            np.dot(self.normal, p), -1 * self.normal_form[3], PRECISION
-        )
+    def point_on(self, p):
+        return point_on_plane(self.normal_form, p, 1.5e-5)
 
     def __str__(self):
         normal_txt = ",".join(map(str, self.normal))
@@ -170,11 +183,11 @@ class Triangle:
     three sides of the triangle and the plane it lies on.
     """
 
-    def __init__(self, vertices, color=GREEN, id=-1):
+    def __init__(self, vertices, color=GREEN, projected_color=GREEN, id=-1):
         self.vertices = vertices
         self.create_sides()
         self.create_plane()
-        self.color = color
+        self.set_colors(color, projected_color)
         self.id = id
 
     def create_sides(self):
@@ -192,19 +205,15 @@ class Triangle:
     def create_plane(self):
         self.plane = Plane.from_three_points(self.vertices)
 
+    def set_colors(self, color, projected_color):
+        self.color = np.array(color, dtype=np.int16)
+        self.projected_color = projected_color
+
     def point_inside(self, p):
         """Checks whether a given point p is inside the triangle."""
-        trans_triangle = self.vertices - p
-        u = py_cross(trans_triangle[1], trans_triangle[2])
-        v = py_cross(trans_triangle[2], trans_triangle[0])
-        w = py_cross(trans_triangle[0], trans_triangle[1])
-        if np.dot(u, v) < 0:
-            return False
-        if np.dot(u, w) < 0:
-            return False
-        return True
+        return point_in_triangle(self.vertices, p)
 
-    def line_intersect(self, line):
+    def get_line_intersection(self, line):
         """
         Checkes if line intersects the triangle's plane such that the
         intersection point is inside the triangle. If it does, the function
@@ -217,21 +226,46 @@ class Triangle:
                 return t
         return None
 
-    def reflect(self, direction):
+    def reflect(self, point, direction):
         """
         Returns the direction of a reflected line, assuming it intersects
         the triangle.
         """
-        return self.plane.reflect(direction)
+        return self.plane.reflect(point, direction)
 
-    def rotate(self, q, point=None):
+    def rotate(self, axis, point=None, angle=0.0):
         if point is None:
             rotation_center = self.center
         else:
             rotation_center = point
-        self.vertices = rotate_around(self.vertices, q, rotation_center)
+        self.vertices = rotate_around_point(self.vertices, axis, rotation_center, angle)
         self.create_sides()
         self.create_plane()
+
+    def get_normal_at_point(self, p):
+        return self.plane.normal
+
+    def draw_projection(self, camera, img):
+        p_wc = triangle_projection(
+            camera.pos, camera.screen.plane.normal_form,
+            self.vertices
+        )
+        p_sc = camera.screen.wc_to_sc(p_wc)
+        vertices_pixels = camera.screen.sc_to_pixels(p_sc).astype(np.int32)
+        vertices_pixels[:, [0, 1]] = vertices_pixels[:, [1, 0]]
+        return cv2.fillConvexPoly(
+            img=camera.screen.projected,
+            points=vertices_pixels,
+            color=self.projected_color,
+        )
+
+    def ray_hits(self, ray):
+        t = line_plane_intersection(ray.start, ray.direction, self.plane.normal_form)
+        if t > 0:
+            p = ray.at_point(t)
+            if point_in_triangle(self.vertices, p):
+                return t
+        return False
 
     def __str__(self):
         return f"""
@@ -244,14 +278,24 @@ class Triangle:
 class Sphere:
     """TBW"""
 
-    def __init__(self, center=-3*Z_, radius=1.0, color=RED):
+    def __init__(
+        self,
+        center=-3 * Z_,
+        radius=1.0,
+        color=RED,
+        projected_color=RED,
+    ):
         self.center = center
         self.radius = radius
         self.radius_sqr = radius**2
-        self.color = color
+        self.color = np.array(color, dtype=np.uint8)
+        if projected_color == "random":
+            self.projected_color = random_choice(PROJECTED_COLORS)
+        else:
+            self.projected_color = projected_color
 
     def point_inside(self, point):
-        return distance2(point, self.center) <= self.radius_sqr
+        return points_in_sphere(self.center, self.radius_sqr, point)
 
     def point_on(self, point):
         d2 = distance2(point, self.center)
@@ -261,9 +305,39 @@ class Sphere:
         """
         Return the normal vector to the sphere at a given point on its surface.
         """
-        """ if not self.point_on(point): """
-        """     raise ValueError(f"Point {point} not on the surface of the sphere") """
         return unit(point - self.center)
+
+    def ray_hits(self, ray):
+        return self.get_line_intersection(ray)
+
+    def get_line_intersection(self, line):
+        return line_sphere_intersection(
+            line.start, line.direction, self.center, self.radius_sqr
+        )
+
+    def draw_projection(self, camera, img, color=WHITE):
+        p, r_vis = sphere_projection(
+            camera.pos, camera.screen.plane.normal_form, self.center,
+            self.radius, camera.screen.width
+        )
+        p_sc = camera.screen.wc_to_sc(p.reshape(1, 3))
+        p_pixel = camera.screen.sc_to_pixels(p_sc)[0][::-1]
+        return cv2.circle(
+            img=camera.screen.projected,
+            center=p_pixel,
+            radius=r_vis,
+            color=self.projected_color,
+            thickness=-1,
+        )
+
+    def get_normal_at_point(self, point):
+        return unit(point - self.center)
+
+    def reflect(self, point, direction):
+        normal = self.get_normal_at_point(point)
+        dn = rand_rotated_normal(normal, np.pi/6)
+        normal = unit(normal + dn)
+        return direction - 2 * (np.dot(direction, normal)) * normal
 
 
 class Screen:
@@ -275,11 +349,15 @@ class Screen:
 
     def __init__(self, resolution=VGA_480p_4_3):
         # resolution related
+        self.width = resolution[0] - 0.5
         self.aspect_ratio = resolution[0] / resolution[1]
-        self.AR_ = 1.0 / self.aspect_ratio
-        self.pixels = np.zeros(np.append(resolution, 3), dtype=np.int16)
+        self.AR_inv = 1.0 / self.aspect_ratio
+        self.AR_half_inv = 0.5 * self.AR_inv
+        self.pixels = np.zeros(np.append(resolution, 3), dtype=np.uint8)
         self.pixel_side = 1.0 / self.pixels.shape[0]
         self.resolution = self.pixels.shape
+        self.projected = np.ones(shape=self.pixels.shape, dtype=np.uint8) * 255
+        self.non_zero_pixels = []
 
         # Screen coordinate system (scs)
         self.corners_scs = np.array(
@@ -287,22 +365,25 @@ class Screen:
                 # Corners order: NW, NE, SE, SW
                 [0, 0],
                 [1, 0],
-                [1, self.AR_],
-                [0, self.AR_],
-            ]
+                [1, self.AR_inv],
+                [0, self.AR_inv],
+            ],
+            dtype=np.double,
         )
-        self.center_scs = np.array([0.5, 0.5 * self.AR_])
+        self.center_scs = np.array([0.5, 0.5 * self.AR_inv], dtype=np.double)
+        self.centering_sc = np.array([-0.5, self.AR_half_inv, 0])
 
         # World coordinate system (wcs)
         self.points_wcs = np.array(
             [
                 # Corners order: NW, NE, SE, SW
-                [-0.5, +0.5 * self.AR_, -1],
-                [+0.5, +0.5 * self.AR_, -1],
-                [+0.5, -0.5 * self.AR_, -1],
-                [-0.5, -0.5 * self.AR_, -1],
-                [0, 0, -1],
-            ]
+                [-0.5, 1, self.AR_half_inv],
+                [0.5, 1, self.AR_half_inv],
+                [0.5, 1, -self.AR_half_inv],
+                [-0.5, 1, -self.AR_half_inv],
+                [0, 1, 0],
+            ],
+            dtype=np.double,
         )
         self.plane = Plane.from_three_points(self.points_wcs[:3])
         self.calc_screen_basis_vecs()
@@ -333,7 +414,7 @@ Allowed range is [0, {self.resolution[1]-1}]."""
             raise ValueError(index_error)
         if not isinstance(indices, np.ndarray):
             indices = np.array([indices]).flatten()
-        dpxl = CORNERS_FROM_CENTER*self.pixel_side
+        dpxl = CORNERS_FROM_CENTER * self.pixel_side
         return self.get_pixel_center_sc(indices) + dpxl
 
     def get_pixel_center_wc(self, indices):
@@ -356,27 +437,31 @@ Allowed range is [0, {self.resolution[1]-1}]."""
         )
 
     def rand_pts_in_pixel_wc(self, indices, n=10):
-        return self.sc_to_wc(self.rand_pts_in_pixel_sc(indices, n))
+        rand_points = self.rand_pts_in_pixel_sc(indices, n)
+        return self.sc_to_wc(rand_points)
+
     # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ #
 
     def calc_screen_basis_vecs(self):
         """
         Calculates the 3 basis vectors of the screen in world coordinates:
         1. The vector from NW corner to NE corner.
-        2. The vector from NW corner to SW corner scaled to length 1.
+        2. The vector from SW corner to NW corner scaled to length 1.
         3. The normal to above vectors.
         Since all three vectors have unit length and are orthonormal to each
         other, the resulting basis set is orthonormal.
+        Note: the set is technically right-handed.
         """
-        u = self.points_wcs[1] - self.points_wcs[0]
-        v = unit(self.points_wcs[3] - self.points_wcs[0])
-        w = py_cross(u, v)
-        self.basis_vecs = np.array([u, v, w])
+        e1 = unit(self.points_wcs[1] - self.points_wcs[0])
+        e2 = unit(self.points_wcs[0] - self.points_wcs[3])
+        n = cross(e1, e2)
+        self.basis_vecs = np.array([e1, e2, n])
+        self.basis_vecs_inv = np.linalg.inv(self.basis_vecs)
 
-    def rotate(self, q, point=None):
+    def rotate(self, axis, point=None, angle=0.0):
         if point is None:
             point = self.points_wcs[4]
-        self.points_wcs = rotate_around(self.points_wcs, q, point)
+        self.points_wcs = rotate_around_point(self.points_wcs, axis, point, angle)
         self.plane = Plane.from_three_points(self.points_wcs[:3])
         self.calc_screen_basis_vecs()
 
@@ -392,8 +477,18 @@ Allowed range is [0, {self.resolution[1]-1}]."""
         NOTE: maybe add limitation on values s.t. sc is indeed inside screen?
         """
         n = sc.shape[0]
-        sc_3 = np.c_[sc, np.zeros(n)]
-        return np.dot(sc_3, self.basis_vecs) + self.points_wcs[0]
+        sc_3 = np.c_[sc, np.zeros(n)] * FLIP_Y + self.centering_sc
+        return np.dot(sc_3, self.basis_vecs) + self.points_wcs[4]
+
+    def wc_to_sc(self, wc):
+        sc = wc - self.points_wcs[4]
+        sc = np.dot(sc, self.basis_vecs_inv)
+        sc -= self.centering_sc
+        sc = sc * FLIP_Y
+        return sc[:, :2]
+
+    def sc_to_pixels(self, sc):
+        return (sc * self.width).astype(np.int16)
 
 
 class Camera:
@@ -405,7 +500,7 @@ class Camera:
     def __init__(
         self,
         pos=np.zeros(3),
-        d_scr=-Z_,
+        d_scr=-Z_.reshape((1, 3)),
         rotation=0.0,
         screen=Screen(),
     ):
@@ -414,12 +509,12 @@ class Camera:
         self.rotation = rotation
         self.screen = screen
 
-    def rotate(self, q):
+    def rotate(self, axis, angle):
         """
         Rotates camera using the quaternion q.
         """
-        self.d_scr = rotate_around(self.d_scr, q, self.pos)
-        self.screen.rotate(q, self.pos)
+        self.d_scr = rotate_around_point(self.d_scr, axis, self.pos, angle)
+        self.screen.rotate(axis, self.pos, angle)
 
     def translate(self, dr):
         """
@@ -435,65 +530,179 @@ class Camera:
         self.d_scr = self.d_scr * factor
         self.screen.translate(self.d_scr - d_scr_old)
 
+    def look_at(self, point):
+        direction = point - self.pos
+        axis, angle = get_axis_angle(self.screen.basis_vecs[2], direction)
+        self.rotate(axis, angle)
+
     def dir_to_pixel_center(self, indices):
         """
         Get unit vector pointing from camera origin to the center of the
         pixel with given indices.
         """
-        return unit(self.screen.get_pixel_center_wc(indices)-self.pos)
+        return unit(self.screen.get_pixel_center_wc(indices) - self.pos)
 
-    def draw_triangles(self, triangles, samples=10):
+    def project_hittable(self, hittables):
+        self.screen.projected = np.zeros(shape=self.screen.pixels.shape, dtype=np.uint8)
+        for hittable in hittables:
+            self.screen.projected = hittable.draw_projection(
+                self, self.screen.projected
+            )
+
+    def projected_blur(self, n=3):
+        kernel = np.ones((n, n), dtype=np.float32) / n**2
+        self.screen.projected = cv2.filter2D(self.screen.projected, -1, kernel)
+
+    def apply_mask(self):
+        gray = cv2.cvtColor(self.screen.projected, cv2.COLOR_BGR2GRAY)
+        self.screen.non_zero_pixels = np.column_stack(np.where(gray > 3))
+
+    def draw_hittables(self, hittable_list, samples=10, mask=True):
         """
         This is just a test! Will be deleted later.
         """
         w, h = self.screen.resolution[:2]
-        self.screen.pixels = np.zeros((w, h, 3), dtype=np.int16)
-        for i in tqdm(range(self.screen.resolution[0]), leave=False):
-            for j in range(self.screen.resolution[1]):
-                rays = [
-                    Ray(self.pos, screen_point)
-                    for screen_point in self.screen.rand_pts_in_pixel_wc(
-                        indices=(i, j), n=samples,
-                    )
-                ]
-                pixel_color = np.zeros((samples, 3), dtype=np.int16)
-                for k, ray in enumerate(rays):
-                    for triangle in triangles:
-                        t = ray.intersects_triangle(triangle)
+        self.screen.pixels = np.zeros((w, h, 3), dtype=np.uint8)
+        if mask:
+            process = self.screen.non_zero_pixels
+        else:
+            process = [(i, j) for i in range(w) for j in range(h)]
+        for i, j in tqdm(process, leave=False):
+            rays = [
+                Ray(self.pos, screen_point, max_bounces=3)
+                for screen_point in self.screen.rand_pts_in_pixel_wc(
+                    indices=(i, j),
+                    n=samples,
+                )
+            ]
+            pixel_color = np.zeros((samples, 3))
+            for k, ray in enumerate(rays):
+                ray.reset_color()
+                while ray.num_bounces <= ray.max_bounces:
+                    ray.reset_hits()
+                    for hittable in hittable_list:
+                        t = hittable.ray_hits(ray)
                         if t is not None and t > 0:
-                            ray.add_hit(t, triangle)
+                            ray.add_hit(t, hittable)
                     if ray.has_hits():
-                        closest_triangle = ray.get_closest_hit()[1]
-                        f = np.dot(
-                            ray.direction, closest_triangle.plane.normal
-                        )
-                        pixel_color[k] = (
-                            closest_triangle.color * np.abs(f)
-                        ).astype(np.int16)
-                self.screen.pixels[i, j] = np.mean(
-                    pixel_color, axis=0
-                ).astype(np.int16)
+                        t, closest_hittable = ray.get_closest_hit()
+                        p = ray.at_point(t)
+                        ray.start = p
+                        ray.direction = closest_hittable.reflect(p, ray.direction)
+                    else:
+                        ray.num_bounces = ray.max_bounces+1
+                    """ f = np.dot(ray.direction, closest_hittable.get_normal_at_point(p)) """
+                pixel_color[k] = ray.calc_avg_color()
+            self.screen.pixels[i, j] = np.mean(pixel_color, axis=0).astype(np.int32)
+
+    def save_frame(self, filename):
+        cv2.imwrite(
+            filename,
+            np.swapaxes(self.screen.pixels, 0, 1),
+        )
+
+    def save_projection(self, filename):
+        cv2.imwrite(
+            filename,
+            np.swapaxes(self.screen.projected, 0, 1),
+        )
 
 
 class Ray(Line):
     """docstring for Ray."""
-    def __init__(self, start, direction):
+
+    def __init__(self, start, direction, max_bounces=3):
         super(Ray, self).__init__(start, direction)
         self.hits = pq()
-        self.color = BLACK
+        self.color = np.zeros(3)
+        self.max_bounces = max_bounces
+        self.num_bounces = 0
+        self.active = True
 
     def add_hit(self, t, object):
         try:
             self.hits.put((t, object), block=False)
+            self.color = np.vstack((self.color, object.color))
         except:
-            print(t, object.id)
+            print("error:", t, object.id)
 
     def has_hits(self):
         return not self.hits.empty()
 
+    def reset_hits(self):
+        with self.hits.mutex:
+            self.hits.queue.clear()
+
+    def reset_color(self):
+        self.color = np.zeros(3)
+
+    def calc_avg_color(self):
+        n = self.color.shape[0]
+        ws = normed_geo_weights(n)
+        self.color = np.average(self.color, axis=0, weights=ws)
+        return self.color
+
     def get_closest_hit(self):
         if self.has_hits():
             return self.hits.get(block=False)
+        else:
+            return -1, None
+
+    def bounce(self, pos, normal):
+        self.start = pos
+        if norm(normal) != 1.0:
+            normal = unit(normal)
+        self.direction = reflect(self.direction, normal)
+        self.num_bounces += 1
+
+    def calc_hits(self, hittables):
+        while self.num_bounces <= self.max_bounces and self.active:
+            self.reset_hits()
+            for hittable in hittables:
+                t = hittable.ray_hits(self)
+                if t is not None and t>0:
+                    self.add_hit(t, hittable)
+            t, closest_hittable = self.get_closest_hit()
+            if closest_hittable is not None:
+                hit_point = self.at_point(t)
+                normal = hittable.get_normal_at_point(p)
+                self.bounce(hit_point, normal)
+
+
+class Mesh:
+    """
+    TBW
+    """
+
+    def __init__(self, faces, color=GREY, id=-1):
+        self.faces = faces
+        self.color = color
+        self.id = id
+        self.center = np.mean([face.center for face in self.faces], axis=0)
+
+    @classmethod
+    def from_vertices(cls, vertices, color=GREY, id=-1):
+        triangles = [
+            Triangle(vertices[n : n + 3], id=i)
+            for i, n in enumerate(np.arange(0, vertices.shape[0], 3))
+        ]
+        return cls(triangles, color, id)
+
+    def rotate(self, axis, point=None, angle=0.0):
+        if point is None:
+            point = self.center
+        for face in self.faces:
+            face.rotate(axis, point, angle)
+
+    def translate(self, vec):
+        for face in self.faces:
+            face.translate(vec)
+
+    def color_randomly(self, colors_list=[RED, GREEN, BLUE, CYAN, MAGENTA, YELLOW]):
+        for face1, face2 in zip(self.faces[::2], self.faces[1::2]):
+            random_color = random_choice(colors_list)
+            face1.set_color(random_color)
+            face2.set_color(random_color)
 
 
 if __name__ == "__main__":
