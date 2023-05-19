@@ -243,7 +243,7 @@ class Triangle:
         self.create_plane()
 
     def get_normal_at_point(self, p, theta=0.0):
-        return self.plane.normal
+        return rand_pt_solid_angle_rotated(self.plane.normal, theta)
 
     def draw_projection(self, camera, img):
         p_wc = triangle_projection(
@@ -330,13 +330,12 @@ class Sphere:
             thickness=-1,
         )
 
-    def get_normal_at_point(self, point):
-        return unit(point - self.center)
+    def get_normal_at_point(self, point, angle=0.05):
+        norm = unit(point-self.center)
+        return rand_pt_solid_angle_rotated(norm, angle)
 
-    def reflect(self, point, direction):
-        normal = self.get_normal_at_point(point)
-        dn = rand_rotated_normal(normal, np.pi/6)
-        normal = unit(normal + dn)
+    def reflect(self, point, direction, angle=0.05):
+        normal = self.get_normal_at_point(point, angle=angle)
         return direction - 2 * (np.dot(direction, normal)) * normal
 
 
@@ -542,7 +541,7 @@ class Camera:
         """
         return unit(self.screen.get_pixel_center_wc(indices) - self.pos)
 
-    def project_hittable(self, hittables):
+    def project_hittables(self, hittables):
         self.screen.projected = np.zeros(shape=self.screen.pixels.shape, dtype=np.uint8)
         for hittable in hittables:
             self.screen.projected = hittable.draw_projection(
@@ -569,7 +568,7 @@ class Camera:
             process = [(i, j) for i in range(w) for j in range(h)]
         for i, j in tqdm(process, leave=False):
             rays = [
-                Ray(self.pos, screen_point, max_bounces=3)
+                Ray(self.pos, screen_point, max_bounces=1)
                 for screen_point in self.screen.rand_pts_in_pixel_wc(
                     indices=(i, j),
                     n=samples,
@@ -577,22 +576,8 @@ class Camera:
             ]
             pixel_color = np.zeros((samples, 3))
             for k, ray in enumerate(rays):
-                ray.reset_color()
-                while ray.num_bounces <= ray.max_bounces:
-                    ray.reset_hits()
-                    for hittable in hittable_list:
-                        t = hittable.ray_hits(ray)
-                        if t is not None and t > 0:
-                            ray.add_hit(t, hittable)
-                    if ray.has_hits():
-                        t, closest_hittable = ray.get_closest_hit()
-                        p = ray.at_point(t)
-                        ray.start = p
-                        ray.direction = closest_hittable.reflect(p, ray.direction)
-                    else:
-                        ray.num_bounces = ray.max_bounces+1
-                    """ f = np.dot(ray.direction, closest_hittable.get_normal_at_point(p)) """
-                pixel_color[k] = ray.calc_avg_color()
+                ray.calc_hits(hittable_list)
+                pixel_color = np.vstack((pixel_color, ray.color))
             self.screen.pixels[i, j] = np.mean(pixel_color, axis=0).astype(np.int32)
 
     def save_frame(self, filename):
@@ -656,7 +641,7 @@ class Ray(Line):
         self.num_bounces += 1
 
     def calc_hits(self, hittables):
-        while self.num_bounces <= self.max_bounces and self.active:
+        while self.num_bounces < self.max_bounces and self.active:
             self.reset_hits()
             for hittable in hittables:
                 t = hittable.ray_hits(self)
@@ -665,10 +650,19 @@ class Ray(Line):
             t, closest_hittable = self.get_closest_hit()
             if closest_hittable is not None:
                 hit_point = self.at_point(t)
-                normal = hittable.get_normal_at_point(p, theta=0.05)
+                normal = hittable.get_normal_at_point(hit_point, 0.1)
+                self.color = closest_hittable.color
                 self.bounce(hit_point, normal)
             else:
                 self.active = False
+        """ if self.num_bounces == 3: """
+        """     self.color = RED """
+        """ elif self.num_bounces == 2: """
+        """     self.color = GREEN """
+        """ elif self.num_bounces == 1: """
+        """     self.color = BLUE """
+        """ else: """
+        """     self.color = BLACK """
 
 
 class Mesh:
