@@ -143,10 +143,10 @@ def quaternion(
         np.ndarray[DTYPE_t, ndim=1] ax,
         double t,
     ):
+    ax = unit(ax)
     cdef double s = sin(t/2)
     cdef double c = cos(t/2)
-    cdef np.ndarray[DTYPE_t, ndim=1] q = np.array([s*ax[0], s*ax[1], s*ax[2], c])
-    return q
+    return np.array([s*ax[0], s*ax[1], s*ax[2], c])
 
 def qprod_v(
         np.ndarray[DTYPE_t, ndim=1] q,
@@ -174,8 +174,8 @@ def qprod_M(
 #############
 
 def rotate_v(
-        np.ndarray[DTYPE_t, ndim=1] ax,
         np.ndarray[DTYPE_t, ndim=1] vec,
+        np.ndarray[DTYPE_t, ndim=1] ax,
         double t,
     ):
     if t == 0:
@@ -230,6 +230,7 @@ def get_axis_angle(
         np.ndarray[DTYPE_t, ndim=1] u,
         np.ndarray[DTYPE_t, ndim=1] v,
     ):
+    # Find axis and angle of rotation for trans between u and v
     cdef np.ndarray[DTYPE_t, ndim=1] q = get_rotation(u, v)
     cdef double t = angle_between(u, v)
     return q[:3], t
@@ -320,18 +321,20 @@ def rand_pt_sphere_surface(int N=10):
         cube[i] = unit(cube[i])
     return cube
 
-def rand_pt_solid_angle(double th=pi/4):
-    cdef np.ndarray[DTYPE_t, ndim=1] rand_vec = unit(np.random.uniform(-1, 1, size=3))
-    cdef np.ndarray[DTYPE_t, ndim=1] vec_sphr = np.zeros(3, dtype=np.double)
-    cdef int found = 0
-    while not found:
-        vec_sphr = cartesian_to_spherical(rand_vec)
-        if -th <= vec_sphr[1] <= th:
-            found = 1
-            return rand_vec
-        else:
-            rand_vec = unit(np.random.uniform(-1, 1, size=3))
-    return None
+def rand_pt_solid_angle(double th):
+    # Generate a random point on a sphere (uniformly distributed)
+    cdef np.ndarray[DTYPE_t, ndim=1] pt = unit(np.random.uniform(-1, 1, size=3))
+    # Find angle and axis from pt to z_=(0,0,1)
+    cdef np.ndarray[DTYPE_t, ndim=1] ax = get_rotation(pt, Z_)[:3]
+    cdef double phi = angle_between(pt, Z_)
+    # If point already inside solid angle th, return it
+    if phi < th:
+        return pt
+    # Otherwise, rotate pt around ax in a random angle psi ∈ [phi-th, phi],
+    # bringing it inside solid angle th
+    cdef double psi = np.random.uniform(phi-th, phi)
+    cdef np.ndarray[DTYPE_t, ndim=1] r = rotate_v(pt, ax, psi)
+    return r
 
 def rand_pt_solid_angle_rotated(
         np.ndarray[DTYPE_t, ndim=1] dir,

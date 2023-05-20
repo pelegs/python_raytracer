@@ -8,13 +8,14 @@ from libs.cymath import *
 fig = plt.figure()
 ax = fig.add_subplot(projection='3d')
 
-n = 1000
+n = 500
 dir = unit(np.random.uniform(-1, 1, size=3))
 points = np.zeros((n, 3), dtype=np.double)
 for i, vec in enumerate(points):
     points[i] = rand_pt_solid_angle_rotated(
-        dir, th=np.pi/5
+        dir, th=np.pi/4
     )
+    """ points[i] = rand_pt_solid_angle(np.pi/4) """
 
 xs = points[:,0]
 ys = points[:,1]

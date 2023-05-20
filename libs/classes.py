@@ -568,7 +568,7 @@ class Camera:
             process = [(i, j) for i in range(w) for j in range(h)]
         for i, j in tqdm(process, leave=False):
             rays = [
-                Ray(self.pos, screen_point, max_bounces=1)
+                Ray(self.pos, screen_point, max_bounces=20)
                 for screen_point in self.screen.rand_pts_in_pixel_wc(
                     indices=(i, j),
                     n=samples,
@@ -578,7 +578,7 @@ class Camera:
             for k, ray in enumerate(rays):
                 ray.calc_hits(hittable_list)
                 pixel_color = np.vstack((pixel_color, ray.color))
-            self.screen.pixels[i, j] = np.mean(pixel_color, axis=0).astype(np.int32)
+            self.screen.pixels[i, j] = np.mean(pixel_color, axis=0).astype(np.int)
 
     def save_frame(self, filename):
         cv2.imwrite(
@@ -599,10 +599,15 @@ class Ray(Line):
     def __init__(self, start, direction, max_bounces=3):
         super(Ray, self).__init__(start, direction)
         self.hits = pq()
-        self.color = np.zeros(3)
         self.max_bounces = max_bounces
         self.num_bounces = 0
         self.active = True
+
+        # Make nice bg
+        s = np.array([255, 195, 120])
+        t = np.array([255, 240, 240])
+        y = self.direction[1]
+        self.color = ((1-y)*t + y*s).astype(np.int16)
 
     def add_hit(self, t, object):
         try:
@@ -641,6 +646,7 @@ class Ray(Line):
         self.num_bounces += 1
 
     def calc_hits(self, hittables):
+        closest_hittable = None
         while self.num_bounces < self.max_bounces and self.active:
             self.reset_hits()
             for hittable in hittables:
@@ -650,19 +656,14 @@ class Ray(Line):
             t, closest_hittable = self.get_closest_hit()
             if closest_hittable is not None:
                 hit_point = self.at_point(t)
-                normal = hittable.get_normal_at_point(hit_point, 0.1)
-                self.color = closest_hittable.color
+                normal = hittable.get_normal_at_point(hit_point, np.pi/2)
                 self.bounce(hit_point, normal)
             else:
                 self.active = False
-        """ if self.num_bounces == 3: """
-        """     self.color = RED """
-        """ elif self.num_bounces == 2: """
-        """     self.color = GREEN """
-        """ elif self.num_bounces == 1: """
-        """     self.color = BLUE """
-        """ else: """
-        """     self.color = BLACK """
+        if self.num_bounces > 0:
+            f = 0.5**(self.num_bounces-1)
+            normed_color = np.sqrt(f*np.array([0.5, 0.5, 0.5]))
+            self.color = (normed_color*255).astype(np.int)
 
 
 class Mesh:
@@ -699,6 +700,11 @@ class Mesh:
             random_color = random_choice(colors_list)
             face1.set_color(random_color)
             face2.set_color(random_color)
+
+
+# Not a class, I know. Will correct later
+def factor_color(color, factor):
+    return (np.array(color).astype(np.float)*factor).astype(np.int16)
 
 
 if __name__ == "__main__":
