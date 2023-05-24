@@ -2,6 +2,7 @@ import numpy as np
 cimport numpy as np
 from libc.math cimport pi, sqrt, sin, cos, tan, acos, fmin
 cimport cython
+import cython
 #cython: boundscheck=False, wraparound=False, nonecheck=False
 
 ctypedef double DTYPE_t
@@ -44,14 +45,31 @@ HD_720p_16_9 = (1280, 720)
 HD_1080p_16_9 = (1920, 1080)
 
 
+##############
+# Class test #
+##############
+
+@cython.cclass
+class Function:
+    @cython.ccall
+    def evaluate(self, x: float) -> float:
+        return 0
+
+@cython.cclass
+class SinOfSquareFunction(Function):
+    @cython.ccall
+    def evaluate(self, x: float) -> float:
+        return sin(x ** 2)
+
+
 ###################
 # Math operations #
 ###################
 
 def sign(double x):
-    if x>.0:
+    if x > .0:
         return 1.0
-    elif x<.0:
+    elif x < .0:
         return -1.0
     else:
         return .0
