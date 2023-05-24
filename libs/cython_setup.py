@@ -13,7 +13,7 @@ run("rm cymath_new.cpython*.so", shell=True)
 setup(
     name="Math functions",
     ext_modules=cythonize(
-        "cymath_new.pyx",
+        "cymath*.pyx",
         include_path=[np.get_include()],
         annotate=True,
     ),
